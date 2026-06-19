@@ -172,7 +172,7 @@
       <label>ลักษณะตำหนิ</label>
       <textarea id="f_cond" placeholder="เช่น มุมล่างบิ่น, สีถลอกด้านข้าง"></textarea>
       <div class="row2">
-        <div><label>คนเจอ/บันทึก</label><select id="f_found"></select></div>
+        <div><label>คนแจ้ง (คนเจอ)</label><select id="f_found"></select><input id="f_foundOther" placeholder="ระบุชื่อ" style="display:none;margin-top:6px"></div>
         <div><label>คนที่ทำ (ถ้ารู้)</label><select id="f_resp"></select></div>
       </div>
       <label>สาเหตุ</label>
@@ -296,6 +296,7 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let employees = [], items = [];
 const SELLERS = ["หมิว","เมย์","ฟาง","เบียร์","บ๋อ","โอ๋ 2","เนเน่","เอ"];
+const EXCLUDE = ["โด้"]; // พนักงานลาออก — ไม่โชว์ในช่องเลือก
 
 const $ = s => document.querySelector(s);
 const toast = m => { const t=$("#toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); };
@@ -322,13 +323,14 @@ async function loadEmployees(){
   const {data,error} = await db.from("employees").select("id,nickname,full_name,is_active").eq("is_active",true).order("nickname");
   if(error){ toast("โหลดพนักงานไม่ได้: "+error.message); return; }
   employees = data||[];
-  const opts = '<option value="">— เลือก —</option>'+employees.map(e=>`<option value="${e.id}">${e.nickname||e.full_name}</option>`).join("");
-  $("#f_found").innerHTML = opts; $("#f_resp").innerHTML = opts;
-  $("#sellSeller").innerHTML = '<option value="">— เลือกผู้ขาย —</option>'
-    + SELLERS.map(n=>`<option value="${n}">${n}</option>`).join("")
-    + '<option value="__other">อื่นๆ (ระบุ)</option>';
+  const empOpts = '<option value="">— เลือก —</option>'+employees.filter(e=>!EXCLUDE.includes(e.nickname)).map(e=>`<option value="${e.id}">${e.nickname||e.full_name}</option>`).join("");
+  const frontOpts = '<option value="">— เลือก —</option>'+SELLERS.map(n=>`<option value="${n}">${n}</option>`).join("")+'<option value="__other">อื่นๆ (ระบุ)</option>';
+  $("#f_found").innerHTML = frontOpts;   // คนแจ้ง = รายชื่อผู้ขาย + อื่นๆ
+  $("#f_resp").innerHTML = empOpts;       // คนที่ทำ = พนักงาน (ตัดคนลาออก)
+  $("#sellSeller").innerHTML = frontOpts;
 }
 $("#sellSeller").onchange = e => { $("#sellSellerOther").style.display = e.target.value==="__other" ? "block" : "none"; };
+$("#f_found").onchange = e => { $("#f_foundOther").style.display = e.target.value==="__other" ? "block" : "none"; };
 
 // ---- load items ----
 let filter = "all";
@@ -387,7 +389,7 @@ function renderApprove(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
-        <div class="meta">เจอ: ${empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
+        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
         <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
       </div>
     </div>`).join("");
@@ -405,7 +407,7 @@ function renderClaim(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
-        <div class="meta">เจอ: ${empName(it.found_by)}${it.cause?" · "+it.cause:""}</div>
+        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.cause?" · "+it.cause:""}</div>
         <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
@@ -687,24 +689,29 @@ $("#saveBtn").onclick = async () => {
       if(up.error) throw up.error;
       urls.push(db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
     }
+    const foundSel = $("#f_found").value;
+    const foundName = foundSel==="__other" ? $("#f_foundOther").value.trim() : foundSel;
+    const foundEmp = employees.find(e=>(e.nickname||e.full_name)===foundName);
     const rec={
       name, photo_urls:urls,
       condition:$("#f_cond").value.trim()||null,
-      found_by:$("#f_found").value||null,
+      found_by: foundEmp ? foundEmp.id : null,
+      found_by_name: foundName||null,
       responsible_by:$("#f_resp").value||null,
       cause:$("#f_cause").value.trim()||null,
       location:$("#f_loc").value.trim()||null,
       original_ref:$("#f_ref").value.trim()||null,
       is_factory_claim:$("#f_claim").checked,
       status: $("#f_claim").checked ? 'claim_pending' : 'pending_review',
-      created_by:$("#f_found").value||null
+      created_by: foundEmp ? foundEmp.id : null
     };
     const ins=await db.from("stock_items").insert(rec).select().single();
     if(ins.error) throw ins.error;
-    await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor:$("#f_found").value||null, detail:{name}});
+    await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor: foundEmp ? foundEmp.id : null, detail:{name, found_by_name:foundName}});
     toast("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)");
     // reset
     ["f_name","f_cond","f_cause","f_loc","f_ref"].forEach(i=>$("#"+i).value="");
+    $("#f_found").value=""; $("#f_foundOther").value=""; $("#f_foundOther").style.display="none";
     $("#f_resp").value=""; $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
     loadItems(); backToList();
   }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
