@@ -1,0 +1,26 @@
+{
+  "name": "คลังของตำหนิ KMMH",
+  "short_name": "คลังตำหนิ",
+  "description": "ระบบคลังของตำหนิ ร้านกิจมั่งมีโฮม",
+  "lang": "th",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#16243f",
+  "theme_color": "#16243f",
+  "icons": [
+    {
+      "src": "icon-kmmh.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-kmmh-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

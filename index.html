@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>คลังของตำหนิ — กิจมั่งมีโฮม</title>
+<meta name="theme-color" content="#16243f">
+<link rel="icon" type="image/png" href="icon-kmmh.png">
+<link rel="apple-touch-icon" href="icon-kmmh.png">
+<link rel="manifest" href="kmmh-manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="คลังตำหนิ KMMH">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{ --bg:#f4f5f7; --card:#fff; --line:#e3e6ea; --txt:#1c2024; --sub:#6b7280; --brand:#2f8f5b; --warn:#d9822b; --danger:#c0392b; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--txt);padding-bottom:80px}
+  header{position:sticky;top:0;background:var(--brand);color:#fff;padding:12px 14px;z-index:20}
+  header h1{font-size:17px;margin:0 0 8px}
+  .userbar{display:flex;gap:8px;align-items:center;font-size:13px}
+  .userbar select{flex:1;padding:7px;border-radius:8px;border:none;font-size:14px}
+  .tabs{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{flex:0 0 auto;white-space:nowrap;padding:13px 14px;border:none;background:none;font-size:14px;color:var(--sub);border-bottom:3px solid transparent}
+  .tabs button.active{color:var(--brand);border-color:var(--brand);font-weight:600}
+  .wrap{padding:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+  .item{display:flex;gap:12px}
+  .item img,.item .noimg{width:74px;height:74px;border-radius:10px;object-fit:cover;background:#eceff2;flex:none;display:flex;align-items:center;justify-content:center;color:#9aa1a9;font-size:11px}
+  .item .info{flex:1;min-width:0}
+  .code{font-size:12px;color:var(--sub)}
+  .nm{font-weight:600;font-size:15px;margin:2px 0}
+  .meta{font-size:12px;color:var(--sub);margin-top:3px;line-height:1.5}
+  .price{font-weight:700;font-size:16px;color:var(--brand);margin-top:4px}
+  .price.pending{color:var(--warn)}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;margin-top:4px}
+  .b-in{background:#e6f4ec;color:var(--brand)} .b-sold{background:#fdeede;color:var(--warn)}
+  .b-ded{background:#eceff2;color:var(--sub)}
+  label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+  input,select,textarea{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:15px;font-family:inherit;background:#fff}
+  textarea{min-height:60px}
+  .btn{display:block;width:100%;padding:14px;border:none;border-radius:10px;background:var(--brand);color:#fff;font-size:16px;font-weight:600;margin-top:16px}
+  .btn:active{opacity:.85}
+  .btn.sm{padding:9px;font-size:14px;margin-top:8px}
+  .row2{display:flex;gap:8px}.row2>div{flex:1}
+  .empty{text-align:center;color:var(--sub);padding:40px 16px;font-size:14px}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2024;color:#fff;padding:11px 18px;border-radius:24px;font-size:14px;z-index:50;opacity:0;transition:.3s;pointer-events:none}
+  .toast.show{opacity:1}
+  .preview{width:100%;max-height:220px;object-fit:contain;border-radius:10px;margin-top:8px;display:none;background:#000}
+  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .thumbs .t{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;background:#000}
+  .thumbs .t img{width:100%;height:100%;object-fit:cover}
+  .thumbs .t span{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer}
+  .item .lthumb{width:74px;height:74px;flex:none;position:relative}
+  .item .lthumb i{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-style:normal;padding:1px 5px;border-radius:8px}
+  .filterbar{display:flex;gap:6px;margin-bottom:10px;overflow-x:auto}
+  .filterbar button{white-space:nowrap;padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:20px;font-size:13px;color:var(--sub)}
+  .filterbar button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .hint{font-size:12px;color:var(--sub);background:#fff7ec;border:1px solid #f3e0c2;border-radius:9px;padding:9px;margin-bottom:10px}
+  .btn.warn{background:var(--warn)} .btn.gray{background:#6b7280}
+  .actbtn{display:inline-block;padding:8px 14px;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;margin-top:8px}
+  .actbtn.sell{background:var(--brand)} .actbtn.confirm{background:var(--warn)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:60}
+  .modal.show{display:flex}
+  .sheet{background:#fff;width:100%;border-radius:18px 18px 0 0;padding:18px 16px 24px}
+  .sheet h3{margin:0 0 4px;font-size:17px} .sheet .sub{font-size:13px;color:var(--sub);margin-bottom:6px}
+  .pin{letter-spacing:6px;text-align:center;font-size:22px}
+  .ago{font-size:12px;color:var(--danger);margin-top:3px}
+  .card.item{cursor:pointer}
+  .hero-wrap{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:12px;background:#000;scrollbar-width:none}
+  .hero-wrap::-webkit-scrollbar{display:none}
+  .hero-wrap img{width:100%;flex:none;scroll-snap-align:center;height:300px;object-fit:contain}
+  .sheet .noimg{width:100%;height:200px;border-radius:12px}
+  .dots{display:flex;gap:6px;justify-content:center;margin-top:8px;min-height:7px}
+  .dots b{width:7px;height:7px;border-radius:50%;background:#cfd4da;display:block;transition:.2s}
+  .dots b.on{background:var(--brand);width:18px;border-radius:4px}
+  .gallery{display:flex;gap:6px;margin-top:8px;overflow-x:auto}
+  .gallery img{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none;cursor:pointer;border:2px solid transparent}
+  .gallery img.sel{border-color:var(--brand)}
+  .bigprice{font-size:26px;font-weight:800;color:var(--brand);margin:8px 0 2px}
+  .bigprice.pending{color:var(--warn);font-size:18px}
+  .pcond{font-size:14px;color:var(--txt);background:#f6f7f9;border-radius:8px;padding:8px 10px;margin-top:6px}
+  .row-btns{display:flex;gap:8px;margin-top:16px}
+  .row-btns .btn{margin-top:0}
+  .billrow{display:flex;gap:6px;margin-top:8px} .billrow input{flex:1}
+  .billrow button{flex:none;width:auto;padding:9px 14px;margin-top:0}
+  .b-nobill{background:#fdeede;color:var(--warn)}
+  .hbar{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .addbtn{flex:none;background:#fff;color:var(--brand);border:none;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:700}
+  .addbtn:active{opacity:.85}
+  .sechead{font-size:15px;font-weight:700;color:var(--txt);margin:4px 0 6px}
+  .card.nobill{border-color:var(--warn);background:#fffaf3}
+  .card.done{opacity:.72}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <h1 style="font-size:15px;margin:0">📦 คลังของตำหนิ — กิจมั่งมีโฮม</h1>
+    <button id="addOpenBtn" class="addbtn">＋ เพิ่มสินค้า</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <button data-tab="list" class="active">รายการ</button>
+  <button data-tab="history">ประวัติการขาย <span id="histcount"></span></button>
+  <button data-tab="review">รอตรวจสอบ/ตั้งราคา <span id="rcount"></span></button>
+  <button data-tab="claim">เคลมโรงงาน <span id="ccount"></span></button>
+  <button data-tab="summary">📊 สรุป</button>
+</div>
+
+<div class="wrap">
+  <!-- LIST -->
+  <div id="tab-list">
+    <div class="filterbar" id="filterbar">
+      <button data-f="all" class="on">ทั้งหมด</button>
+      <button data-f="in_stock">พร้อมขาย</button>
+      <button data-f="sold_pending">ขายแล้ว/รอบิล</button>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <!-- HISTORY (all sales, newest first) -->
+  <div id="tab-history" style="display:none">
+    <div class="hint">ประวัติการขายล่าสุด — รายการที่ยังไม่มีเลขบิลจะไฮไลต์สีส้ม ใส่เลขบิลเพื่อปิดรายการ (ตัดสต๊อกอัตโนมัติ)</div>
+    <div id="historylist"></div>
+  </div>
+
+  <!-- REVIEW = warehouse check + owner pricing -->
+  <div id="tab-review" style="display:none">
+    <div class="sechead">① รอคลังตรวจสอบ <span id="acount"></span></div>
+    <div class="hint">คลังตรวจของจริงแล้วกด "ตรวจแล้ว/อนุมัติ" (ใส่รหัสคลัง) ของถึงจะไปขั้นตั้งราคา</div>
+    <div id="approvelist"></div>
+    <div class="sechead" style="margin-top:18px">② รอตั้งราคา <span id="pcount"></span></div>
+    <div class="hint">เจ้าของตั้งราคา (ใส่รหัสเจ้าของ) ตั้งเสร็จของจะพร้อมขายขึ้นหน้ารายการ</div>
+    <div id="pricelist"></div>
+  </div>
+
+  <!-- CLAIM (factory claim track — not for sale) -->
+  <div id="tab-claim" style="display:none">
+    <div class="sechead">① รอเคลม</div>
+    <div class="hint">ของที่แจ้งเคลมโรงงาน — ไม่เข้าการขาย ส่งคืนโรงงานแล้วกด "เคลมเสร็จแล้ว" เพื่อบันทึกผล</div>
+    <div id="claimPending"></div>
+    <div class="sechead" style="margin-top:18px">② เคลมแล้ว</div>
+    <div id="claimDone"></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div id="tab-summary" style="display:none">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <label style="margin:0;flex:none">เลือกเดือน:</label>
+      <input type="month" id="sumMonth" style="flex:1">
+    </div>
+    <div id="summaryBody"></div>
+  </div>
+
+  <!-- ADD (opened from header button) -->
+  <div id="tab-add" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <b style="font-size:16px">➕ เพิ่มสินค้าใหม่</b>
+        <button class="btn gray sm" id="addCloseBtn" style="width:auto;margin:0;padding:6px 14px">ปิด</button>
+      </div>
+      <label>รูปถ่าย (ถ่ายได้สูงสุด 3 รูป — ระบบย่อขนาดให้อัตโนมัติ)</label>
+      <input type="file" id="photo" accept="image/*" capture="environment" style="display:none">
+      <div id="thumbs" class="thumbs"></div>
+      <button type="button" class="btn gray sm" id="addPhotoBtn" style="margin-top:8px">📷 เพิ่มรูป (0/3)</button>
+      <label>ชื่อสินค้า *</label>
+      <input id="f_name" placeholder="เช่น ประตู PVC สีขาว">
+      <label>ลักษณะตำหนิ</label>
+      <textarea id="f_cond" placeholder="เช่น มุมล่างบิ่น, สีถลอกด้านข้าง"></textarea>
+      <div class="row2">
+        <div><label>คนเจอ/บันทึก</label><select id="f_found"></select></div>
+        <div><label>คนที่ทำ (ถ้ารู้)</label><select id="f_resp"></select></div>
+      </div>
+      <label>สาเหตุ</label>
+      <input id="f_cause" placeholder="เช่น ขนของตก / มาแบบนี้จากโรงงาน">
+      <div class="row2">
+        <div><label>จุดวางในคลัง</label><input id="f_loc" placeholder="เช่น ชั้น B2"></div>
+        <div><label>รหัสตัวสินค้าเดิม (ถ้ามี)</label><input id="f_ref" placeholder="ACC-BILLING"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+        <input type="checkbox" id="f_claim" style="width:auto"> เป็นของที่จะเคลมโรงงาน
+      </label>
+      <button class="btn" id="saveBtn">บันทึกเข้าคลัง</button>
+      <div class="hint" style="margin:12px 0 0">หลังบันทึก ของจะอยู่สถานะ "รอตรวจสอบ" รอคลังตรวจก่อนขึ้นรายการ — ถ้าติ๊ก "เคลมโรงงาน" จะเข้าแท็บเคลมโรงงานแทน (ไม่เข้าการขาย)</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- PRODUCT DETAIL popup (customer-friendly) -->
+<div class="modal" id="prodModal">
+  <div class="sheet">
+    <div id="prodHero"></div>
+    <div class="dots" id="prodDots"></div>
+    <div class="gallery" id="prodGallery"></div>
+    <div class="nm" id="prodName" style="font-size:18px;margin-top:10px"></div>
+    <div class="bigprice" id="prodPrice"></div>
+    <button id="prodEditPrice" class="btn gray sm" style="width:auto;margin:4px 0 0;padding:6px 12px;display:none">✎ แก้ไขราคา (รหัสเจ้าของ)</button>
+    <div class="pcond" id="prodCond" style="display:none"></div>
+    <div class="row-btns">
+      <button class="btn gray" id="prodCloseBtn">ปิดหน้าต่าง</button>
+      <button class="btn" id="prodSellBtn">🟢 ขายแล้ว</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLAIM result -->
+<div class="modal" id="claimModal">
+  <div class="sheet">
+    <h3>🏭 บันทึกผลเคลมโรงงาน</h3>
+    <div class="sub" id="claimItemName"></div>
+    <div class="hint" style="margin:6px 0 10px">โรงงานเคลมเสร็จแล้ว ได้อะไรกลับมา?</div>
+    <div class="row-btns">
+      <button class="btn gray" id="claimGoodsBtn">📦 ได้สินค้าคืน</button>
+      <button class="btn gray" id="claimRefundBtn">💰 ได้เงินคืน</button>
+    </div>
+    <div id="claimFields" style="display:none">
+      <label id="claimDateLabel">วันที่รับคืน</label>
+      <input type="date" id="claimDate">
+      <label id="claimRefLabel">เลขที่บิลรับคืนสินค้า (ถ้ามี)</label>
+      <input id="claimRef" placeholder="เว้นว่างได้">
+    </div>
+    <button class="btn" id="claimSaveBtn" style="display:none">บันทึกผลเคลม</button>
+    <button class="btn gray sm" id="claimCancelBtn" style="margin-top:8px">ยกเลิก</button>
+  </div>
+</div>
+
+<!-- SUMMARY detail list -->
+<div class="modal" id="sumModal">
+  <div class="sheet">
+    <h3 id="sumTitle"></h3>
+    <div id="sumList" style="max-height:60vh;overflow-y:auto;margin-top:6px"></div>
+    <button class="btn gray" id="sumCloseBtn" style="margin-top:12px">ปิด</button>
+  </div>
+</div>
+
+<!-- PRICE set/edit (owner PIN) -->
+<div class="modal" id="priceModal">
+  <div class="sheet">
+    <h3 id="priceTitle">💰 ตั้งราคา</h3>
+    <div class="sub" id="priceItemName"></div>
+    <label>ราคาขาย (บาท)</label>
+    <input type="number" inputmode="decimal" id="priceVal" placeholder="ราคา">
+    <label>รหัสเจ้าของ</label>
+    <input type="password" inputmode="numeric" id="pricePin" class="pin" placeholder="••••">
+    <div class="row-btns">
+      <button class="btn gray" id="priceCancelBtn">ยกเลิก</button>
+      <button class="btn" id="priceSaveBtn">บันทึกราคา</button>
+    </div>
+  </div>
+</div>
+
+<!-- SELL form bottom sheet -->
+<div class="modal" id="sellModal">
+  <div class="sheet">
+    <h3>🟢 บันทึกการขาย</h3>
+    <div class="sub" id="sellItemName"></div>
+    <label>ผู้ขาย *</label>
+    <select id="sellSeller"></select>
+    <input id="sellSellerOther" placeholder="ระบุชื่อผู้ขาย" style="display:none;margin-top:8px">
+    <label>เลขที่บิล (ใส่ตอนนี้ หรือ ใส่ย้อนหลังก็ได้)</label>
+    <input id="sellBill" placeholder="เช่น IV-12345 (เว้นว่างได้)">
+    <div class="row-btns">
+      <button class="btn gray" id="sellCancelBtn">ยกเลิก</button>
+      <button class="btn" id="sellConfirmBtn">ยืนยันการขาย</button>
+    </div>
+  </div>
+</div>
+
+<!-- APPROVE bottom sheet (warehouse PIN) -->
+<div class="modal" id="apvModal">
+  <div class="sheet">
+    <h3>🔒 อนุมัติขายได้</h3>
+    <div class="sub" id="apvItemName"></div>
+    <div class="hint" style="margin:6px 0 0">ตรวจของจริงแล้วว่าเป็นของตำหนิและขายได้ — ใส่รหัสคลังเพื่ออนุมัติ ของจะขึ้นรายการให้ทุกคนเห็น</div>
+    <label>รหัสผู้รับผิดชอบคลัง</label>
+    <input type="password" inputmode="numeric" id="apvPin" class="pin" placeholder="••••">
+    <div class="row-btns">
+      <button class="btn gray" id="apvCancelBtn">ยกเลิก</button>
+      <button class="btn" id="apvConfirmBtn">อนุมัติ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://hfystbdqjhftrlelmkjm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Cz_p8O1rAs2ohPDtnKS_BA_LYUGiw8r";
+const BUCKET = "stock-photos";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let employees = [], items = [];
+const SELLERS = ["หมิว","เมย์","ฟาง","เบียร์","บ๋อ","โอ๋ 2","เนเน่","เอ"];
+
+const $ = s => document.querySelector(s);
+const toast = m => { const t=$("#toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); };
+const empName = id => { const e=employees.find(x=>x.id===id); return e ? (e.nickname||e.full_name) : "-"; };
+
+// ---- tabs ----
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  ["list","history","review","claim","summary"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
+  $("#tab-add").style.display="none";
+  if(b.dataset.tab==='summary') renderSummary();
+});
+$("#addOpenBtn").onclick = ()=>{
+  ["list","history","review","claim","summary"].forEach(t=>$("#tab-"+t).style.display="none");
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
+  $("#tab-add").style.display="block";
+};
+function backToList(){ $("#tab-add").style.display="none"; document.querySelector('.tabs button[data-tab="list"]').click(); }
+$("#addCloseBtn").onclick = backToList;
+
+// ---- load employees ----
+async function loadEmployees(){
+  const {data,error} = await db.from("employees").select("id,nickname,full_name,is_active").eq("is_active",true).order("nickname");
+  if(error){ toast("โหลดพนักงานไม่ได้: "+error.message); return; }
+  employees = data||[];
+  const opts = '<option value="">— เลือก —</option>'+employees.map(e=>`<option value="${e.id}">${e.nickname||e.full_name}</option>`).join("");
+  $("#f_found").innerHTML = opts; $("#f_resp").innerHTML = opts;
+  $("#sellSeller").innerHTML = '<option value="">— เลือกผู้ขาย —</option>'
+    + SELLERS.map(n=>`<option value="${n}">${n}</option>`).join("")
+    + '<option value="__other">อื่นๆ (ระบุ)</option>';
+}
+$("#sellSeller").onchange = e => { $("#sellSellerOther").style.display = e.target.value==="__other" ? "block" : "none"; };
+
+// ---- load items ----
+let filter = "all";
+async function loadItems(){
+  const {data,error} = await db.from("stock_items").select("*").neq("status","removed").order("created_at",{ascending:false});
+  if(error){ toast("โหลดรายการไม่ได้: "+error.message); return; }
+  items = data||[];
+  renderList(); renderApprove(); renderPrice(); renderHistory(); renderClaim();
+  const aCnt=items.filter(it=>it.status==='pending_review').length;
+  const pCnt=items.filter(it=>it.price_status==='pending'&&it.status==='in_stock').length;
+  $("#rcount").textContent=(aCnt+pCnt)?("("+(aCnt+pCnt)+")"):"";
+}
+const fmt = n => (n==null?"-":"฿ "+Number(n).toLocaleString());
+function photoTag(it){
+  const arr=(it.photo_urls&&it.photo_urls.length)?it.photo_urls:[];
+  const u=arr[0]||"";
+  if(!u) return `<div class="noimg">ไม่มีรูป</div>`;
+  return `<div class="lthumb"><img src="${u}">${arr.length>1?`<i>📷${arr.length}</i>`:""}</div>`;
+}
+function statusBadge(s){
+  if(s==="in_stock") return '<span class="badge b-in">พร้อมขาย</span>';
+  if(s==="sold_pending") return '<span class="badge b-sold">ขายแล้ว/รอบิล</span>';
+  if(s==="deducted") return '<span class="badge b-ded">ตัดแล้ว</span>';
+  return "";
+}
+function renderList(){
+  const arr = items.filter(it=> (it.status==='in_stock' || it.status==='sold_pending') && (filter==="all" ? true : it.status===filter)).slice(0,20);
+  if(!arr.length){ $("#list").innerHTML='<div class="empty">ยังไม่มีรายการ</div>'; return; }
+  $("#list").innerHTML = arr.map(it=>`
+    <div class="card item" onclick="openProduct(${it.id})">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
+        <div class="price ${it.price_status==='pending'?'pending':''}">${it.price_status==='set'?("฿ "+Number(it.preset_price).toLocaleString()):"รอตั้งราคา"}</div>
+        ${statusBadge(it.status)}
+      </div>
+    </div>`).join("");
+}
+document.querySelectorAll("#filterbar button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#filterbar button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); filter=b.dataset.f; renderList();
+});
+
+// ---- approval queue (warehouse QC) ----
+function renderApprove(){
+  const all = items.filter(it=>it.status==='pending_review');
+  $("#acount").textContent = all.length?("("+all.length+")"):"";
+  const arr = all.slice(0,20);
+  if(!all.length){ $("#approvelist").innerHTML='<div class="empty">ไม่มีของรอตรวจสอบ 👍</div>'; return; }
+  $("#approvelist").innerHTML = arr.map(it=>`
+    <div class="card item">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
+        <div class="meta">เจอ: ${empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
+        <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
+      </div>
+    </div>`).join("");
+}
+
+// ---- factory claim track ----
+function renderClaim(){
+  const pend = items.filter(it=>it.status==='claim_pending');
+  const done = items.filter(it=>it.status==='claim_done').slice(0,20);
+  $("#ccount").textContent = pend.length?("("+pend.length+")"):"";
+  $("#claimPending").innerHTML = pend.length ? pend.slice(0,20).map(it=>`
+    <div class="card item">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
+        <div class="meta">เจอ: ${empName(it.found_by)}${it.cause?" · "+it.cause:""}</div>
+        <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
+      </div>
+    </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
+  $("#claimDone").innerHTML = done.length ? done.map(it=>`
+    <div class="card item done">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        <div class="meta">ผล: ${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_date?' · '+it.claim_date:''}</div>
+        ${it.claim_ref?`<div class="meta">${it.claim_result==='refund'?'🧾 ใบลดหนี้: ':'🧾 บิลรับคืน: '}<b>${it.claim_ref}</b></div>`:""}
+      </div>
+    </div>`).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
+}
+let claimId = null, claimResult = null;
+window.openClaim = id => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  claimId = id; claimResult = null;
+  $("#claimItemName").textContent = (it.code||"")+" "+(it.name||"");
+  $("#claimGoodsBtn").classList.add("gray"); $("#claimRefundBtn").classList.add("gray");
+  $("#claimFields").style.display="none"; $("#claimSaveBtn").style.display="none";
+  $("#claimDate").value = new Date().toISOString().slice(0,10);
+  $("#claimRef").value = "";
+  $("#claimModal").classList.add("show");
+};
+function pickClaim(result){
+  claimResult = result;
+  $("#claimGoodsBtn").classList.toggle("gray", result!=='goods');
+  $("#claimRefundBtn").classList.toggle("gray", result!=='refund');
+  if(result==='goods'){ $("#claimDateLabel").textContent="วันที่รับคืน"; $("#claimRefLabel").textContent="เลขที่บิลรับคืนสินค้า (ถ้ามี)"; }
+  else { $("#claimDateLabel").textContent="วันที่รับเงินคืน"; $("#claimRefLabel").textContent="เลขที่ใบลดหนี้ (ถ้ามี)"; }
+  $("#claimFields").style.display="block"; $("#claimSaveBtn").style.display="block";
+}
+$("#claimGoodsBtn").onclick = ()=> pickClaim('goods');
+$("#claimRefundBtn").onclick = ()=> pickClaim('refund');
+$("#claimCancelBtn").onclick = ()=> $("#claimModal").classList.remove("show");
+$("#claimSaveBtn").onclick = async ()=>{
+  if(claimId==null || !claimResult){ toast("เลือกผลเคลมก่อน"); return; }
+  $("#claimSaveBtn").disabled=true; $("#claimSaveBtn").textContent="กำลังบันทึก...";
+  const {error} = await db.from("stock_items").update({
+    status:'claim_done', claim_result:claimResult,
+    claim_date: $("#claimDate").value||null,
+    claim_ref: $("#claimRef").value.trim()||null,
+    claim_at:new Date().toISOString()
+  }).eq("id",claimId);
+  $("#claimSaveBtn").disabled=false; $("#claimSaveBtn").textContent="บันทึกผลเคลม";
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  await db.from("stock_audit").insert({item_id:claimId, action:'claim_done', actor:null, detail:{result:claimResult, date:$("#claimDate").value, ref:$("#claimRef").value.trim()}});
+  $("#claimModal").classList.remove("show");
+  toast("บันทึกผลเคลมแล้ว ✅");
+  loadItems();
+};
+
+// ---- pricing (owner PIN, via modal) ----
+function renderPrice(){
+  const all = items.filter(it=>it.price_status==="pending" && it.status==='in_stock');
+  $("#pcount").textContent = all.length?("("+all.length+")"):"";
+  const arr = all.slice(0,20);
+  if(!all.length){ $("#pricelist").innerHTML='<div class="empty">ไม่มีของรอตั้งราคา 👍</div>'; return; }
+  $("#pricelist").innerHTML = arr.map(it=>`
+    <div class="card item">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
+        <button class="actbtn sell" onclick="openPrice(${it.id})">💰 ตั้งราคา</button>
+      </div>
+    </div>`).join("");
+}
+let priceItemId = null;
+window.openPrice = id => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  priceItemId = id;
+  $("#priceTitle").textContent = it.price_status==='set' ? "💰 แก้ไขราคา" : "💰 ตั้งราคา";
+  $("#priceItemName").textContent = (it.code||"")+" "+(it.name||"");
+  $("#priceVal").value = it.preset_price!=null ? it.preset_price : "";
+  $("#pricePin").value = "";
+  $("#priceModal").classList.add("show");
+};
+$("#priceCancelBtn").onclick = ()=> $("#priceModal").classList.remove("show");
+$("#priceSaveBtn").onclick = async ()=>{
+  if(priceItemId==null) return;
+  const v = parseFloat($("#priceVal").value);
+  if(isNaN(v)||v<0){ toast("กรอกราคาให้ถูกต้อง"); return; }
+  const pin = $("#pricePin").value.trim();
+  if(!pin){ toast("ใส่รหัสเจ้าของ"); return; }
+  $("#priceSaveBtn").disabled=true; $("#priceSaveBtn").textContent="กำลังบันทึก...";
+  const {data,error} = await db.rpc("set_price",{p_item_id:priceItemId,p_price:v,p_pin:pin});
+  $("#priceSaveBtn").disabled=false; $("#priceSaveBtn").textContent="บันทึกราคา";
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  if(!data || !data.ok){ toast(data&&data.error?data.error:"บันทึกไม่สำเร็จ"); return; }
+  $("#priceModal").classList.remove("show"); $("#prodModal").classList.remove("show");
+  toast("บันทึกราคาแล้ว ✅"); loadItems();
+};
+
+// ---- product detail popup (customer-friendly) ----
+let curProd = null;
+window.openProduct = id => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  curProd = it;
+  const arr=(it.photo_urls&&it.photo_urls.length)?it.photo_urls:[];
+  const hero=$("#prodHero");
+  if(arr.length){
+    hero.className="hero-wrap";
+    hero.innerHTML=arr.map(u=>`<img src="${u}">`).join("");
+    hero.scrollLeft=0;
+    hero.onscroll=()=>{ const idx=Math.round(hero.scrollLeft/Math.max(1,hero.clientWidth));
+      document.querySelectorAll("#prodDots b").forEach((d,k)=>d.classList.toggle("on",k===idx)); };
+  }else{
+    hero.className=""; hero.onscroll=null;
+    hero.innerHTML=`<div class="noimg" style="display:flex;align-items:center;justify-content:center;color:#9aa1a9">ไม่มีรูป</div>`;
+  }
+  $("#prodDots").innerHTML = arr.length>1 ? arr.map((_,i)=>`<b class="${i===0?'on':''}"></b>`).join("") : "";
+  $("#prodGallery").innerHTML = arr.length>1 ? arr.map((u,i)=>`<img src="${u}" onclick="scrollHero(${i})">`).join("") : "";
+  $("#prodName").textContent = (it.code?it.code+"  ":"")+(it.name||"");
+  if(it.price_status==='set' && it.preset_price!=null){
+    $("#prodPrice").className="bigprice"; $("#prodPrice").textContent="฿ "+Number(it.preset_price).toLocaleString();
+  }else{
+    $("#prodPrice").className="bigprice pending"; $("#prodPrice").textContent="ยังไม่ได้ตั้งราคา";
+  }
+  if(it.condition){ $("#prodCond").style.display="block"; $("#prodCond").textContent="🔧 ตำหนิ: "+it.condition; }
+  else $("#prodCond").style.display="none";
+  $("#prodSellBtn").style.display = it.status==='in_stock' ? "block" : "none";
+  $("#prodEditPrice").style.display = it.status==='in_stock' ? "inline-block" : "none";
+  $("#prodModal").classList.add("show");
+};
+window.scrollHero = i => { const hero=$("#prodHero"); hero.scrollTo({left:i*hero.clientWidth, behavior:'smooth'}); };
+$("#prodCloseBtn").onclick = ()=> $("#prodModal").classList.remove("show");
+$("#prodEditPrice").onclick = ()=>{ if(curProd){ $("#prodModal").classList.remove("show"); openPrice(curProd.id); } };
+
+// ---- sell form ----
+$("#prodSellBtn").onclick = ()=>{
+  if(!curProd) return;
+  $("#prodModal").classList.remove("show");
+  $("#sellItemName").textContent = (curProd.code||"")+" "+(curProd.name||"");
+  $("#sellSeller").value=""; $("#sellBill").value="";
+  $("#sellSellerOther").value=""; $("#sellSellerOther").style.display="none";
+  $("#sellModal").classList.add("show");
+};
+$("#sellCancelBtn").onclick = ()=> $("#sellModal").classList.remove("show");
+$("#sellConfirmBtn").onclick = async ()=>{
+  if(!curProd) return;
+  const sel = $("#sellSeller").value;
+  let sellerName;
+  if(sel==="__other"){ sellerName = $("#sellSellerOther").value.trim(); if(!sellerName){ toast("ระบุชื่อผู้ขาย"); return; } }
+  else if(sel){ sellerName = sel; }
+  else { toast("เลือกผู้ขายก่อน"); return; }
+  const empMatch = employees.find(e=>(e.nickname||e.full_name)===sellerName);
+  const price = (curProd.price_status==='set' && curProd.preset_price!=null) ? curProd.preset_price : null;
+  $("#sellConfirmBtn").disabled=true; $("#sellConfirmBtn").textContent="กำลังบันทึก...";
+  const {error} = await db.from("stock_sales").insert({
+    item_id: curProd.id, sold_price: price, bill_no: $("#sellBill").value.trim()||null,
+    seller_name: sellerName, marked_by: empMatch ? empMatch.id : null
+  });
+  $("#sellConfirmBtn").disabled=false; $("#sellConfirmBtn").textContent="ยืนยันการขาย";
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  const hadBill = !!$("#sellBill").value.trim();
+  $("#sellModal").classList.remove("show");
+  await loadItems();
+  if(hadBill){ toast("ขายแล้ว + ตัดสต๊อกอัตโนมัติ (มีบิล) ✅"); }
+  else { toast("บันทึกขายแล้ว → ดูในประวัติการขาย"); document.querySelector('.tabs button[data-tab="history"]').click(); }
+};
+
+// ---- pending deduction ----
+const hoursAgo = ts => { if(!ts) return ""; const h=(Date.now()-new Date(ts).getTime())/3.6e6;
+  return h<1?"เพิ่งกด":(h<24?("ค้างมา "+Math.floor(h)+" ชม."):("ค้างมา "+Math.floor(h/24)+" วัน")); };
+let sales = [];
+async function renderHistory(){
+  const {data,error} = await db.from("stock_sales")
+    .select("id,item_id,sold_price,bill_no,seller_name,marked_by,marked_at,deducted_in_acc")
+    .order("marked_at",{ascending:false}).limit(20);
+  if(error){ $("#historylist").innerHTML='<div class="empty">โหลดไม่ได้: '+error.message+'</div>'; return; }
+  sales = data||[];
+  const {count} = await db.from("stock_sales").select("id",{count:'exact',head:true}).eq("deducted_in_acc",false);
+  $("#histcount").textContent = count?("("+count+")"):"";
+  if(!sales.length){ $("#historylist").innerHTML='<div class="empty">ยังไม่มีประวัติการขาย</div>'; return; }
+  $("#historylist").innerHTML = sales.map(s=>{
+    const it = items.find(x=>x.id===s.item_id)||{};
+    const hasBill = !!(s.bill_no && (""+s.bill_no).trim());
+    const billBlock = hasBill
+      ? `<div class="meta">🧾 บิล: <b>${s.bill_no}</b> · ✅ ตัดแล้ว</div>`
+      : `<div style="margin-top:4px"><span class="badge b-nobill">⚠️ ยังไม่มีเลขบิล</span></div>
+         <div class="billrow">
+           <input id="bill_${s.id}" placeholder="ใส่เลขบิลขาย">
+           <button class="btn" onclick="saveBill(${s.id})">บันทึก = ตัดสต๊อก</button>
+         </div>`;
+    return `<div class="card item ${hasBill?'done':'nobill'}">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        <div class="meta">ขาย: ${fmt(s.sold_price)} · ผู้ขาย ${s.seller_name || empName(s.marked_by)}</div>
+        <div class="meta">${hoursAgo(s.marked_at)}</div>
+        ${billBlock}
+      </div>
+    </div>`;
+  }).join("");
+}
+window.saveBill = async id => {
+  const v = $("#bill_"+id).value.trim();
+  if(!v){ toast("ใส่เลขบิลก่อน"); return; }
+  const {error} = await db.from("stock_sales").update({bill_no:v}).eq("id",id);
+  if(error){ toast("บันทึกไม่ได้: "+error.message); return; }
+  toast("ใส่เลขบิลแล้ว — ตัดสต๊อกอัตโนมัติ ✅");
+  loadItems();
+};
+
+let apvId = null;
+window.openApprove = id => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  apvId = id;
+  $("#apvItemName").textContent = (it.code||"")+" "+(it.name||"");
+  $("#apvPin").value = "";
+  $("#apvModal").classList.add("show");
+  setTimeout(()=>$("#apvPin").focus(),100);
+};
+$("#apvCancelBtn").onclick = ()=> $("#apvModal").classList.remove("show");
+$("#apvConfirmBtn").onclick = async ()=>{
+  if(apvId==null) return;
+  const pin = $("#apvPin").value.trim();
+  if(!pin){ toast("ใส่รหัสก่อน"); return; }
+  $("#apvConfirmBtn").disabled=true; $("#apvConfirmBtn").textContent="กำลังอนุมัติ...";
+  const {data,error} = await db.rpc("approve_item",{p_item_id:apvId,p_pin:pin});
+  $("#apvConfirmBtn").disabled=false; $("#apvConfirmBtn").textContent="อนุมัติ";
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  if(!data || !data.ok){ toast(data&&data.error?data.error:"อนุมัติไม่สำเร็จ"); return; }
+  $("#apvModal").classList.remove("show");
+  toast("อนุมัติแล้ว — ขึ้นรายการพร้อมขาย ✅");
+  loadItems();
+};
+
+// ---- add item ----
+const MAX_PHOTOS=3, MAX_DIM=1000, JPEG_Q=0.7;
+let photoFiles=[]; // {blob, url}
+function resizeImage(file){
+  return new Promise((resolve,reject)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width, h=img.height;
+        if(w>=h && w>MAX_DIM){ h=Math.round(h*MAX_DIM/w); w=MAX_DIM; }
+        else if(h>w && h>MAX_DIM){ w=Math.round(w*MAX_DIM/h); h=MAX_DIM; }
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        c.toBlob(b=> b?resolve(b):reject("blob"), "image/jpeg", JPEG_Q);
+      };
+      img.onerror=reject; img.src=fr.result;
+    };
+    fr.onerror=reject; fr.readAsDataURL(file);
+  });
+}
+function renderThumbs(){
+  $("#thumbs").innerHTML = photoFiles.map((p,i)=>`<div class="t"><img src="${p.url}"><span onclick="removePhoto(${i})">✕</span></div>`).join("");
+  $("#addPhotoBtn").textContent = `📷 เพิ่มรูป (${photoFiles.length}/${MAX_PHOTOS})`;
+  $("#addPhotoBtn").style.display = photoFiles.length>=MAX_PHOTOS ? "none" : "block";
+}
+window.removePhoto = i => { try{URL.revokeObjectURL(photoFiles[i].url);}catch(e){} photoFiles.splice(i,1); renderThumbs(); };
+$("#addPhotoBtn").onclick = ()=> $("#photo").click();
+$("#photo").onchange = async e => {
+  const f=e.target.files[0]; e.target.value="";
+  if(!f || photoFiles.length>=MAX_PHOTOS) return;
+  try{
+    const blob=await resizeImage(f);
+    photoFiles.push({blob, url:URL.createObjectURL(blob)});
+    renderThumbs();
+  }catch(err){ toast("ย่อรูปไม่ได้"); }
+};
+$("#saveBtn").onclick = async () => {
+  const name = $("#f_name").value.trim();
+  if(!name){ toast("กรอกชื่อสินค้า"); return; }
+  $("#saveBtn").disabled=true; $("#saveBtn").textContent="กำลังบันทึก...";
+  try{
+    let urls=[];
+    for(const p of photoFiles){
+      const path=`${Date.now()}_${Math.random().toString(36).slice(2,7)}.jpg`;
+      const up=await db.storage.from(BUCKET).upload(path, p.blob, {upsert:false, contentType:"image/jpeg"});
+      if(up.error) throw up.error;
+      urls.push(db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
+    }
+    const rec={
+      name, photo_urls:urls,
+      condition:$("#f_cond").value.trim()||null,
+      found_by:$("#f_found").value||null,
+      responsible_by:$("#f_resp").value||null,
+      cause:$("#f_cause").value.trim()||null,
+      location:$("#f_loc").value.trim()||null,
+      original_ref:$("#f_ref").value.trim()||null,
+      is_factory_claim:$("#f_claim").checked,
+      status: $("#f_claim").checked ? 'claim_pending' : 'pending_review',
+      created_by:$("#f_found").value||null
+    };
+    const ins=await db.from("stock_items").insert(rec).select().single();
+    if(ins.error) throw ins.error;
+    await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor:$("#f_found").value||null, detail:{name}});
+    toast("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)");
+    // reset
+    ["f_name","f_cond","f_cause","f_loc","f_ref"].forEach(i=>$("#"+i).value="");
+    $("#f_resp").value=""; $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
+    loadItems(); backToList();
+  }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
+  $("#saveBtn").disabled=false; $("#saveBtn").textContent="บันทึกเข้าคลัง";
+};
+
+// ---- month summary ----
+async function renderSummary(){
+  if(!$("#sumMonth").value){ $("#sumMonth").value = new Date().toISOString().slice(0,7); }
+  const [y,m] = $("#sumMonth").value.split("-").map(Number);
+  $("#summaryBody").innerHTML = '<div class="empty">กำลังโหลด...</div>';
+  const {data,error} = await db.rpc("stock_month_summary",{p_year:y,p_month:m});
+  if(error){ $("#summaryBody").innerHTML='<div class="empty">โหลดไม่ได้: '+error.message+'</div>'; return; }
+  const s=data||{}; const B=n=>Number(n||0).toLocaleString();
+  const tap='cursor:pointer';
+  const prod=(s.by_product||[]), cul=(s.by_culprit||[]);
+  const rowLine=(l,r)=>`<div class="meta" style="display:flex;justify-content:space-between;gap:8px"><span>${l}</span><span style="white-space:nowrap">${r}</span></div>`;
+  $("#summaryBody").innerHTML = `
+    <div class="card" style="${tap}" onclick="openSumDetail('sold')"><div class="sechead">🟢 ขายออกเดือนนี้ ›</div>
+      <div class="bigprice">฿ ${B(s.sold_sum)}</div>
+      <div class="meta">${s.sold_cnt||0} ชิ้น${s.sold_nobill>0?` · ⚠️ ยังไม่ใส่บิล ${s.sold_nobill} ชิ้น`:''}</div>
+    </div>
+    <div class="card" style="${tap}" onclick="openSumDetail('onhand')"><div class="sechead">📦 ของคงเหลือในคลัง (ปัจจุบัน) ›</div>
+      <div class="bigprice">฿ ${B(s.onhand_val)}</div>
+      <div class="meta">${s.onhand_cnt||0} ชิ้น (คิดมูลค่าเฉพาะที่ตั้งราคาแล้ว)</div>
+    </div>
+    <div class="card" style="${tap}" onclick="openSumDetail('claim')"><div class="sechead">🏭 เคลมโรงงานเดือนนี้ ›</div>
+      <div class="meta">📦 ได้สินค้าคืน ${s.claim_goods||0} ชิ้น · 💰 ได้เงินคืน ${s.claim_refund||0} ชิ้น</div>
+    </div>
+    <div class="card" style="${tap}" onclick="openSumDetail('backlog')"><div class="sechead">⏳ ค้าง / ต้องจัดการ (ปัจจุบัน) ›</div>
+      <div class="meta">รออนุมัติ ${s.backlog_review||0} · รอตั้งราคา ${s.backlog_price||0} · รอใส่บิล ${s.backlog_bill||0} · รอเคลม ${s.backlog_claim||0}</div>
+    </div>
+    <div class="card"><div class="sechead">📦 สรุปตามรายสินค้า (เดือนนี้)</div>
+      ${prod.length ? prod.map(p=>rowLine(p.name, `${p.cnt} ชิ้น · ฿${B(p.val)}`)).join("") : '<div class="meta">— ไม่มีของเพิ่มเดือนนี้ —</div>'}
+    </div>
+    <div class="card"><div class="sechead">🧑‍🔧 สรุปตามคนที่ทำชำรุด (เดือนนี้)</div>
+      ${cul.length ? cul.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">—</div>'}
+    </div>`;
+}
+$("#sumMonth").onchange = renderSummary;
+
+window.openSumDetail = async kind => {
+  const mv = $("#sumMonth").value; const [y,m]=mv.split("-").map(Number);
+  const d0=new Date(y,m-1,1), d1=new Date(y,m,1);
+  const nm = id => { const it=items.find(x=>x.id===id)||{}; return (it.code?it.code+" ":"")+(it.name||""); };
+  let title="", rows=[];
+  if(kind==='sold'){
+    title="🟢 ขายออก "+mv;
+    const {data} = await db.from("stock_sales").select("item_id,sold_price,bill_no,seller_name,marked_by,deducted_in_acc")
+      .gte("marked_at",d0.toISOString()).lt("marked_at",d1.toISOString()).order("marked_at",{ascending:false});
+    rows=(data||[]).map(s=>`<div class="card item"><div class="info"><div class="nm">${nm(s.item_id)}</div><div class="meta">${fmt(s.sold_price)} · ${s.seller_name||empName(s.marked_by)} · ${s.bill_no?('🧾 '+s.bill_no):'⚠️ ไม่มีบิล'}</div></div></div>`);
+  } else if(kind==='onhand'){
+    title="📦 ของคงเหลือในคลัง";
+    rows=items.filter(it=>it.status==='in_stock').map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">${it.price_status==='set'?fmt(it.preset_price):'รอตั้งราคา'}${it.location?' · 📍'+it.location:''}</div></div></div>`);
+  } else if(kind==='claim'){
+    title="🏭 เคลมโรงงาน "+mv;
+    rows=items.filter(it=>it.status==='claim_done'&&it.claim_at&&new Date(it.claim_at)>=d0&&new Date(it.claim_at)<d1)
+      .map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_ref?' · '+it.claim_ref:''}${it.claim_date?' · '+it.claim_date:''}</div></div></div>`);
+  } else if(kind==='backlog'){
+    title="⏳ ค้าง / ต้องจัดการ";
+    const lbl={pending_review:'รออนุมัติ',sold_pending:'รอใส่บิล',claim_pending:'รอเคลม'};
+    rows=items.filter(it=>['pending_review','sold_pending','claim_pending'].includes(it.status)||(it.status==='in_stock'&&it.price_status==='pending'))
+      .map(it=>{ const l=it.status==='in_stock'?'รอตั้งราคา':(lbl[it.status]||it.status); return `<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">${l}</div></div></div>`; });
+  }
+  $("#sumTitle").textContent=title;
+  $("#sumList").innerHTML = rows.length ? rows.join("") : '<div class="empty">ไม่มีรายการ</div>';
+  $("#sumModal").classList.add("show");
+};
+$("#sumCloseBtn").onclick = ()=> $("#sumModal").classList.remove("show");
+
+// ---- init ----
+(async()=>{ await loadEmployees(); await loadItems(); })();
+</script>
+</body>
+</html>
