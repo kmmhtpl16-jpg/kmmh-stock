@@ -93,6 +93,15 @@
   .sechead{font-size:15px;font-weight:700;color:var(--txt);margin:4px 0 6px}
   .card.nobill{border-color:var(--warn);background:#fffaf3}
   .card.done{opacity:.72}
+  .searchwrap{position:relative;margin-bottom:10px}
+  #searchInput{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:15px;background:#fff}
+  .sug{position:absolute;left:0;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:0 0 10px 10px;box-shadow:0 6px 16px rgba(0,0,0,.12);z-index:30;max-height:330px;overflow-y:auto;display:none}
+  .sug.show{display:block}
+  .sug .s-item{display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer}
+  .sug .s-item:active{background:#f1f3f5}
+  .sug .s-item img,.sug .s-item .noimg2{width:42px;height:42px;object-fit:cover;border-radius:6px;background:#eceff2;flex:none}
+  .sug .s-nm{font-size:14px;font-weight:600}
+  .sug .s-meta{font-size:12px;color:var(--sub)}
 </style>
 </head>
 <body>
@@ -114,6 +123,10 @@
 <div class="wrap">
   <!-- LIST -->
   <div id="tab-list">
+    <div class="searchwrap">
+      <input id="searchInput" placeholder="🔍 ค้นหาชื่อสินค้า / รหัส" autocomplete="off">
+      <div id="searchSug" class="sug"></div>
+    </div>
     <div class="filterbar" id="filterbar">
       <button data-f="all" class="on">ทั้งหมด</button>
       <button data-f="in_stock">พร้อมขาย</button>
@@ -333,7 +346,7 @@ $("#sellSeller").onchange = e => { $("#sellSellerOther").style.display = e.targe
 $("#f_found").onchange = e => { $("#f_foundOther").style.display = e.target.value==="__other" ? "block" : "none"; };
 
 // ---- load items ----
-let filter = "all";
+let filter = "all", searchQ = "";
 async function loadItems(){
   const {data,error} = await db.from("stock_items").select("*").neq("status","removed").order("created_at",{ascending:false});
   if(error){ toast("โหลดรายการไม่ได้: "+error.message); return; }
@@ -357,7 +370,10 @@ function statusBadge(s){
   return "";
 }
 function renderList(){
-  const arr = items.filter(it=> (it.status==='in_stock' || it.status==='sold_pending') && (filter==="all" ? true : it.status===filter)).slice(0,20);
+  const q = searchQ.trim().toLowerCase();
+  const arr = items.filter(it=> (it.status==='in_stock' || it.status==='sold_pending')
+      && (filter==="all" ? true : it.status===filter)
+      && (!q || (it.name||'').toLowerCase().includes(q) || (it.code||'').toLowerCase().includes(q))).slice(0,20);
   if(!arr.length){ $("#list").innerHTML='<div class="empty">ยังไม่มีรายการ</div>'; return; }
   $("#list").innerHTML = arr.map(it=>`
     <div class="card item" onclick="openProduct(${it.id})">
@@ -375,6 +391,25 @@ document.querySelectorAll("#filterbar button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#filterbar button").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); filter=b.dataset.f; renderList();
 });
+
+// ---- search + suggestions (รายการ) ----
+$("#searchInput").oninput = e => {
+  searchQ = e.target.value;
+  const q = searchQ.trim().toLowerCase();
+  const box = $("#searchSug");
+  if(!q){ box.classList.remove("show"); box.innerHTML=""; renderList(); return; }
+  const pool = items.filter(it=> it.status==='in_stock' || it.status==='sold_pending');
+  const m = pool.filter(it=> (it.name||'').toLowerCase().includes(q) || (it.code||'').toLowerCase().includes(q)).slice(0,8);
+  box.innerHTML = m.length ? m.map(it=>{
+    const u=(it.photo_urls&&it.photo_urls[0])||"";
+    const price = it.price_status==='set' ? ("฿ "+Number(it.preset_price).toLocaleString()) : "รอตั้งราคา";
+    return `<div class="s-item" onclick="pickSearch(${it.id})">${u?`<img src="${u}">`:`<div class="noimg2"></div>`}<div><div class="s-nm">${it.name||''}</div><div class="s-meta">${it.code||''} · ${price}</div></div></div>`;
+  }).join("") : '<div class="s-item" style="cursor:default;color:var(--sub)">ไม่พบสินค้า</div>';
+  box.classList.add("show");
+  renderList();
+};
+window.pickSearch = id => { $("#searchSug").classList.remove("show"); openProduct(id); };
+document.addEventListener("click", e=>{ if(!e.target.closest(".searchwrap")) $("#searchSug").classList.remove("show"); });
 
 // ---- approval queue (warehouse QC) ----
 function renderApprove(){
