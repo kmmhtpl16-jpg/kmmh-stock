@@ -79,6 +79,20 @@
   .gallery{display:flex;gap:6px;margin-top:8px;overflow-x:auto}
   .gallery img{width:64px;height:64px;object-fit:cover;border-radius:8px;flex:none;cursor:pointer;border:2px solid transparent}
   .gallery img.sel{border-color:var(--brand)}
+  /* full-screen image lightbox */
+  .lbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;flex-direction:column;z-index:90}
+  .lbox.show{display:flex}
+  .lbox .lb-track{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+  .lbox .lb-track::-webkit-scrollbar{display:none}
+  .lbox .lb-track img{width:100vw;flex:none;scroll-snap-align:center;object-fit:contain;height:100%}
+  .lbox .lb-close{position:absolute;top:14px;right:16px;width:40px;height:40px;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:22px;line-height:1;cursor:pointer;z-index:2}
+  .lbox .lb-count{position:absolute;top:20px;left:16px;color:#fff;font-size:14px;background:rgba(0,0,0,.45);padding:3px 10px;border-radius:12px;z-index:2}
+  .lbox .lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border:none;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:24px;cursor:pointer;z-index:2}
+  .lbox .lb-prev{left:10px}.lbox .lb-next{right:10px}
+  .lbox .lb-dots{position:absolute;bottom:18px;left:0;right:0;display:flex;gap:7px;justify-content:center}
+  .lbox .lb-dots b{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.4);display:block;transition:.2s}
+  .lbox .lb-dots b.on{background:#fff;width:18px;border-radius:4px}
+  .item .lthumb img{width:74px;height:74px;border-radius:10px;object-fit:cover;cursor:zoom-in}
   .bigprice{font-size:26px;font-weight:800;color:var(--brand);margin:8px 0 2px}
   .bigprice.pending{color:var(--warn);font-size:18px}
   .pcond{font-size:14px;color:var(--txt);background:#f6f7f9;border-radius:8px;padding:8px 10px;margin-top:6px}
@@ -253,6 +267,16 @@
   </div>
 </div>
 
+<!-- IMAGE lightbox (full screen, swipeable) -->
+<div class="lbox" id="lbox">
+  <button class="lb-close" id="lbClose">✕</button>
+  <span class="lb-count" id="lbCount"></span>
+  <button class="lb-nav lb-prev" id="lbPrev">‹</button>
+  <div class="lb-track" id="lbTrack"></div>
+  <button class="lb-nav lb-next" id="lbNext">›</button>
+  <div class="lb-dots" id="lbDots"></div>
+</div>
+
 <!-- PRICE set/edit (owner PIN) -->
 <div class="modal" id="priceModal">
   <div class="sheet">
@@ -361,8 +385,49 @@ function photoTag(it){
   const arr=(it.photo_urls&&it.photo_urls.length)?it.photo_urls:[];
   const u=arr[0]||"";
   if(!u) return `<div class="noimg">ไม่มีรูป</div>`;
-  return `<div class="lthumb"><img src="${u}">${arr.length>1?`<i>📷${arr.length}</i>`:""}</div>`;
+  return `<div class="lthumb" onclick="event.stopPropagation();openLightbox(${it.id})"><img src="${u}">${arr.length>1?`<i>📷${arr.length}</i>`:""}</div>`;
 }
+// ---- full-screen swipeable image viewer ----
+let lbUrls=[];
+window.openLightbox = (id, start=0) => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  lbUrls = (it.photo_urls&&it.photo_urls.length)?it.photo_urls:[];
+  if(!lbUrls.length) return;
+  const track=$("#lbTrack");
+  track.innerHTML = lbUrls.map(u=>`<img src="${u}">`).join("");
+  $("#lbDots").innerHTML = lbUrls.length>1 ? lbUrls.map((_,i)=>`<b class="${i===start?'on':''}"></b>`).join("") : "";
+  const multi = lbUrls.length>1;
+  $("#lbPrev").style.display=$("#lbNext").style.display = multi?"block":"none";
+  $("#lbCount").style.display = multi?"block":"none";
+  $("#lbox").classList.add("show");
+  // jump to starting image after layout
+  requestAnimationFrame(()=>{ track.scrollLeft = start*track.clientWidth; lbUpdate(); });
+};
+function lbIndex(){ const t=$("#lbTrack"); return Math.round(t.scrollLeft/Math.max(1,t.clientWidth)); }
+function lbUpdate(){
+  const idx=lbIndex();
+  document.querySelectorAll("#lbDots b").forEach((d,k)=>d.classList.toggle("on",k===idx));
+  $("#lbCount").textContent=(idx+1)+" / "+lbUrls.length;
+}
+function lbGo(dir){
+  const t=$("#lbTrack");
+  let idx=Math.min(lbUrls.length-1,Math.max(0,lbIndex()+dir));
+  t.scrollTo({left:idx*t.clientWidth,behavior:"smooth"});
+}
+function closeLightbox(){ $("#lbox").classList.remove("show"); }
+$("#lbTrack").onscroll = lbUpdate;
+$("#lbClose").onclick = closeLightbox;
+$("#lbPrev").onclick = ()=>lbGo(-1);
+$("#lbNext").onclick = ()=>lbGo(1);
+// tap dark area (not the image/buttons) to close
+$("#lbox").addEventListener("click", e=>{ if(e.target.id==="lbox"||e.target.id==="lbTrack") closeLightbox(); });
+// keyboard support
+document.addEventListener("keydown", e=>{
+  if(!$("#lbox").classList.contains("show")) return;
+  if(e.key==="Escape") closeLightbox();
+  else if(e.key==="ArrowLeft") lbGo(-1);
+  else if(e.key==="ArrowRight") lbGo(1);
+});
 function statusBadge(s){
   if(s==="in_stock") return '<span class="badge b-in">พร้อมขาย</span>';
   if(s==="sold_pending") return '<span class="badge b-sold">ขายแล้ว/รอบิล</span>';
