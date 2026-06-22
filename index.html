@@ -30,9 +30,9 @@
   .item{display:flex;gap:12px}
   .item img,.item .noimg{width:74px;height:74px;border-radius:10px;object-fit:cover;background:#eceff2;flex:none;display:flex;align-items:center;justify-content:center;color:#9aa1a9;font-size:11px}
   .item .info{flex:1;min-width:0}
-  .code{font-size:12px;color:var(--sub)}
-  .nm{font-weight:600;font-size:15px;margin:2px 0}
-  .meta{font-size:12px;color:var(--sub);margin-top:3px;line-height:1.5}
+  .code{font-size:13px;color:var(--sub)}
+  .nm{font-weight:600;font-size:16px;margin:2px 0}
+  .meta{font-size:14px;color:#4b5563;margin-top:4px;line-height:1.55}
   .price{font-weight:700;font-size:16px;color:var(--brand);margin-top:4px}
   .price.pending{color:var(--warn)}
   .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;margin-top:4px}
@@ -456,8 +456,8 @@ function statusBadge(s){
 function transferMeta(it){
   const txt = (it.transfer_no||it.transfer_date)
     ? `📄 โอนย้าย: <b>${it.transfer_no||"-"}</b>${it.transfer_date?" · "+it.transfer_date:""}`
-    : `📄 ใบโอนย้าย: <span style="color:var(--sub)">ยังไม่ใส่</span>`;
-  return `<div class="meta" onclick="event.stopPropagation();openTransfer(${it.id})" style="cursor:pointer">${txt} <span style="color:var(--brand)">✎</span></div>`;
+    : `📄 ใบโอนย้าย: <span style="color:var(--warn);font-weight:600">ยังไม่ใส่</span>`;
+  return `<div class="meta" onclick="event.stopPropagation();openTransfer(${it.id})" style="cursor:pointer">${txt} <span style="color:var(--brand);font-size:16px">✎</span></div>`;
 }
 let transferId=null;
 window.openTransfer = id => {
