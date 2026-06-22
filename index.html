@@ -208,6 +208,10 @@
         <div><label>จุดวางในคลัง</label><input id="f_loc" placeholder="เช่น ชั้น B2"></div>
         <div><label>รหัสตัวสินค้าเดิม (ถ้ามี)</label><input id="f_ref" placeholder="ACC-BILLING"></div>
       </div>
+      <div class="row2">
+        <div><label>เลขที่ใบโอนย้าย (STR)</label><input id="f_transferNo" placeholder="เช่น STR69-00001"></div>
+        <div><label>วันที่โอนย้าย</label><input type="date" id="f_transferDate"></div>
+      </div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
         <input type="checkbox" id="f_claim" style="width:auto"> เป็นของที่จะเคลมโรงงาน
       </label>
@@ -275,6 +279,20 @@
   <div class="lb-track" id="lbTrack"></div>
   <button class="lb-nav lb-next" id="lbNext">›</button>
   <div class="lb-dots" id="lbDots"></div>
+</div>
+
+<!-- TRANSFER doc (เลขที่ใบโอนย้ายระหว่างคลัง) -->
+<div class="modal" id="transferModal">
+  <div class="sheet">
+    <h3>📄 ใบโอนย้ายระหว่างคลัง</h3>
+    <div class="sub" id="transferItemName"></div>
+    <label>เลขที่ใบโอนย้าย (STR)</label>
+    <input id="transferNoInput" placeholder="เช่น STR69-00001">
+    <label>วันที่โอนย้าย</label>
+    <input type="date" id="transferDateInput">
+    <button class="btn" id="transferSaveBtn" style="margin-top:10px">บันทึก</button>
+    <button class="btn gray sm" id="transferCancelBtn" style="margin-top:8px">ยกเลิก</button>
+  </div>
 </div>
 
 <!-- PRICE set/edit (owner PIN) -->
@@ -434,6 +452,36 @@ function statusBadge(s){
   if(s==="deducted") return '<span class="badge b-ded">ตัดแล้ว</span>';
   return "";
 }
+// ---- transfer doc (ใบโอนย้ายระหว่างคลัง) ----
+function transferMeta(it){
+  const txt = (it.transfer_no||it.transfer_date)
+    ? `📄 โอนย้าย: <b>${it.transfer_no||"-"}</b>${it.transfer_date?" · "+it.transfer_date:""}`
+    : `📄 ใบโอนย้าย: <span style="color:var(--sub)">ยังไม่ใส่</span>`;
+  return `<div class="meta" onclick="event.stopPropagation();openTransfer(${it.id})" style="cursor:pointer">${txt} <span style="color:var(--brand)">✎</span></div>`;
+}
+let transferId=null;
+window.openTransfer = id => {
+  const it=items.find(x=>x.id===id); if(!it) return;
+  transferId=id;
+  $("#transferItemName").textContent=(it.code||"")+" "+(it.name||"");
+  $("#transferNoInput").value=it.transfer_no||"";
+  $("#transferDateInput").value=it.transfer_date||"";
+  $("#transferModal").classList.add("show");
+};
+$("#transferCancelBtn").onclick=()=>$("#transferModal").classList.remove("show");
+$("#transferSaveBtn").onclick=async()=>{
+  if(transferId==null) return;
+  const btn=$("#transferSaveBtn"); btn.disabled=true; btn.textContent="กำลังบันทึก...";
+  const upd=await db.from("stock_items").update({
+    transfer_no:$("#transferNoInput").value.trim()||null,
+    transfer_date:$("#transferDateInput").value||null
+  }).eq("id",transferId);
+  btn.disabled=false; btn.textContent="บันทึก";
+  if(upd.error){ toast("ผิดพลาด: "+upd.error.message); return; }
+  toast("บันทึกใบโอนย้ายแล้ว");
+  $("#transferModal").classList.remove("show");
+  await loadItems();
+};
 function renderList(){
   const q = searchQ.trim().toLowerCase();
   const arr = items.filter(it=> (it.status==='in_stock' || it.status==='sold_pending')
@@ -449,6 +497,7 @@ function renderList(){
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
         <div class="price ${it.price_status==='pending'?'pending':''}">${it.price_status==='set'?("฿ "+Number(it.preset_price).toLocaleString()):"รอตั้งราคา"}</div>
         ${statusBadge(it.status)}
+        ${transferMeta(it)}
       </div>
     </div>`).join("");
 }
@@ -490,6 +539,7 @@ function renderApprove(){
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
+        ${transferMeta(it)}
         <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
       </div>
     </div>`).join("");
@@ -508,6 +558,7 @@ function renderClaim(){
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.cause?" · "+it.cause:""}</div>
+        ${transferMeta(it)}
         <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
@@ -519,6 +570,7 @@ function renderClaim(){
         <div class="nm">${it.name||""}</div>
         <div class="meta">ผล: ${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_date?' · '+it.claim_date:''}</div>
         ${it.claim_ref?`<div class="meta">${it.claim_result==='refund'?'🧾 ใบลดหนี้: ':'🧾 บิลรับคืน: '}<b>${it.claim_ref}</b></div>`:""}
+        ${transferMeta(it)}
       </div>
     </div>`).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
 }
@@ -801,6 +853,8 @@ $("#saveBtn").onclick = async () => {
       cause:$("#f_cause").value.trim()||null,
       location:$("#f_loc").value.trim()||null,
       original_ref:$("#f_ref").value.trim()||null,
+      transfer_no:$("#f_transferNo").value.trim()||null,
+      transfer_date:$("#f_transferDate").value||null,
       is_factory_claim:$("#f_claim").checked,
       status: $("#f_claim").checked ? 'claim_pending' : 'pending_review',
       created_by: foundEmp ? foundEmp.id : null
@@ -810,7 +864,7 @@ $("#saveBtn").onclick = async () => {
     await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor: foundEmp ? foundEmp.id : null, detail:{name, found_by_name:foundName}});
     toast("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)");
     // reset
-    ["f_name","f_cond","f_cause","f_loc","f_ref"].forEach(i=>$("#"+i).value="");
+    ["f_name","f_cond","f_cause","f_loc","f_ref","f_transferNo","f_transferDate"].forEach(i=>$("#"+i).value="");
     $("#f_found").value=""; $("#f_foundOther").value=""; $("#f_foundOther").style.display="none";
     $("#f_resp").value=""; $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
     loadItems(); backToList();
