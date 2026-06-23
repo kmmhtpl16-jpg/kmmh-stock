@@ -212,7 +212,7 @@
           <option value="caught">ตรวจเจอ/ถูกจับได้</option>
         </select></div>
       </div>
-      <div class="hint" style="margin:0 0 4px">บันทึกค่าเสียหายไว้ก่อนได้ การหักเงินจริงไปกดปุ่ม "คิดค่าเสียหาย" ที่แท็บ "รอตรวจสอบ/ตั้งราคา" (ต้องระบุคนที่ทำ + ใส่รหัสเจ้าของ)</div>
+      <div class="hint" style="margin:0 0 4px">ใส่ค่าเสียหาย + "คนที่ทำ" แล้วกดบันทึก = ส่งให้ HR ตรวจที่หน้า payroll อัตโนมัติ (ไม่หักทันที) · ถ้าไม่ใส่คนที่ทำจะแค่บันทึกไว้ก่อน ค่อยส่งทีหลังที่แท็บ "รอตรวจสอบ/ตั้งราคา"</div>
       <div class="row2">
         <div><label>จุดวางในคลัง</label><input id="f_loc" placeholder="เช่น ชั้น B2"></div>
         <div><label>รหัสตัวสินค้าเดิม (ถ้ามี)</label><input id="f_ref" placeholder="ACC-BILLING"></div>
@@ -340,7 +340,7 @@
 <!-- DAMAGE charge bottom sheet (owner PIN) -->
 <div class="modal" id="damageModal">
   <div class="sheet">
-    <h3>💸 เสนอคิดค่าเสียหาย (ส่งให้ HR)</h3>
+    <h3>💸 ส่งค่าเสียหายให้ HR ตรวจ</h3>
     <div class="sub" id="damageItemName"></div>
     <div class="hint" style="margin:6px 0 0">ผู้ถูกคิด: <b id="damageEmp"></b> · กดส่งแล้วจะ <b>รอ HR ตรวจสอบ &amp; อนุมัติที่หน้า payroll</b> ก่อน ถึงจะหักจริง (งวดสิ้นเดือน) — ยังไม่หักทันที</div>
     <label>จำนวนเงินค่าเสียหาย (บาท)</label>
@@ -351,8 +351,6 @@
       <option value="self_reported">พนักงานแจ้งเอง</option>
       <option value="caught">ตรวจเจอ/ถูกจับได้</option>
     </select>
-    <label>รหัสเจ้าของ</label>
-    <input type="password" inputmode="numeric" id="damagePin" class="pin" placeholder="••••">
     <div class="row-btns">
       <button class="btn gray" id="damageCancelBtn">ยกเลิก</button>
       <button class="btn" id="damageConfirmBtn" style="background:var(--danger)">ส่งให้ HR ตรวจ</button>
@@ -493,7 +491,7 @@ function damageBlock(it){
   if(!it.responsible_by)
     return `<div class="meta" style="color:var(--sub)">💸 ค่าเสียหาย: ระบุ "คนที่ทำ" ก่อนถึงจะคิดได้</div>`;
   const rejected = it.charge_status==='rejected';
-  return `${rejected?`<div class="meta" style="color:var(--danger)">❌ HR ตีกลับ${it.charge_reject_reason?': '+it.charge_reject_reason:''}</div>`:''}<button class="actbtn" style="background:var(--danger)" onclick="openDamage(${it.id})">💸 ${rejected?'เสนอใหม่':'คิดค่าเสียหาย'}${it.damage_charge?` (฿${Number(it.damage_charge).toLocaleString()})`:''}</button>`;
+  return `${rejected?`<div class="meta" style="color:var(--danger)">❌ HR ตีกลับ${it.charge_reject_reason?': '+it.charge_reject_reason:''}</div>`:''}<button class="actbtn" style="background:var(--danger)" onclick="openDamage(${it.id})">💸 ${rejected?'เสนอใหม่':'ส่งค่าเสียหายให้ HR'}${it.damage_charge?` (฿${Number(it.damage_charge).toLocaleString()})`:''}</button>`;
 }
 // ---- transfer doc (ใบโอนย้ายระหว่างคลัง) ----
 function transferMeta(it){
@@ -826,7 +824,6 @@ window.openDamage = id => {
   $("#damageEmp").textContent = empName(it.responsible_by);
   $("#damageAmt").value = it.damage_charge!=null ? it.damage_charge : "";
   $("#damageReport").value = it.report_type || "";
-  $("#damagePin").value = "";
   $("#damageModal").classList.add("show");
 };
 $("#damageCancelBtn").onclick = ()=> $("#damageModal").classList.remove("show");
@@ -834,11 +831,9 @@ $("#damageConfirmBtn").onclick = async ()=>{
   if(damageId==null) return;
   const amt = parseFloat($("#damageAmt").value);
   if(isNaN(amt)||amt<=0){ toast("กรอกจำนวนเงินให้ถูกต้อง"); return; }
-  const pin = $("#damagePin").value.trim();
-  if(!pin){ toast("ใส่รหัสเจ้าของ"); return; }
   $("#damageConfirmBtn").disabled=true; $("#damageConfirmBtn").textContent="กำลังส่ง...";
   const {data,error} = await db.rpc("stock_charge_damage",{
-    p_item_id:damageId, p_amount:amt, p_report_type:$("#damageReport").value||null, p_pin:pin
+    p_item_id:damageId, p_amount:amt, p_report_type:$("#damageReport").value||null
   });
   $("#damageConfirmBtn").disabled=false; $("#damageConfirmBtn").textContent="ส่งให้ HR ตรวจ";
   if(error){ toast("ผิดพลาด: "+error.message); return; }
@@ -944,7 +939,13 @@ $("#saveBtn").onclick = async () => {
     const ins=await db.from("stock_items").insert(rec).select().single();
     if(ins.error) throw ins.error;
     await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor: foundEmp ? foundEmp.id : null, detail:{name, found_by_name:foundName}});
-    toast("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)");
+    // ถ้ากรอกค่าเสียหาย + มีคนที่ทำ + ไม่ใช่ของเคลมโรงงาน → ส่งให้ HR ตรวจทันที
+    let hrSent=false;
+    if(rec.damage_charge && rec.damage_charge>0 && rec.responsible_by && !rec.is_factory_claim){
+      const rpc=await db.rpc("stock_charge_damage",{p_item_id:ins.data.id, p_amount:rec.damage_charge, p_report_type:rec.report_type||null});
+      if(!rpc.error && rpc.data && rpc.data.ok) hrSent=true;
+    }
+    toast(hrSent ? ("บันทึก "+ins.data.code+" + ส่งค่าเสียหายให้ HR แล้ว ⏳") : ("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)"));
     // reset
     ["f_name","f_cond","f_cause","f_loc","f_ref","f_transferNo","f_transferDate","f_damage"].forEach(i=>$("#"+i).value="");
     $("#f_reportType").value="";
