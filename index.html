@@ -205,6 +205,15 @@
       <label>สาเหตุ</label>
       <input id="f_cause" placeholder="เช่น ขนของตก / มาแบบนี้จากโรงงาน">
       <div class="row2">
+        <div><label>ค่าเสียหายจากพนักงาน (บาท)</label><input type="number" inputmode="decimal" id="f_damage" placeholder="เว้นว่าง = ยังไม่คิด"></div>
+        <div><label>การแจ้ง</label><select id="f_reportType">
+          <option value="">— ไม่ระบุ —</option>
+          <option value="self_reported">พนักงานแจ้งเอง</option>
+          <option value="caught">ตรวจเจอ/ถูกจับได้</option>
+        </select></div>
+      </div>
+      <div class="hint" style="margin:0 0 4px">บันทึกค่าเสียหายไว้ก่อนได้ การหักเงินจริงไปกดปุ่ม "คิดค่าเสียหาย" ที่แท็บ "รอตรวจสอบ/ตั้งราคา" (ต้องระบุคนที่ทำ + ใส่รหัสเจ้าของ)</div>
+      <div class="row2">
         <div><label>จุดวางในคลัง</label><input id="f_loc" placeholder="เช่น ชั้น B2"></div>
         <div><label>รหัสตัวสินค้าเดิม (ถ้ามี)</label><input id="f_ref" placeholder="ACC-BILLING"></div>
       </div>
@@ -324,6 +333,29 @@
     <div class="row-btns">
       <button class="btn gray" id="sellCancelBtn">ยกเลิก</button>
       <button class="btn" id="sellConfirmBtn">ยืนยันการขาย</button>
+    </div>
+  </div>
+</div>
+
+<!-- DAMAGE charge bottom sheet (owner PIN) -->
+<div class="modal" id="damageModal">
+  <div class="sheet">
+    <h3>💸 เสนอคิดค่าเสียหาย (ส่งให้ HR)</h3>
+    <div class="sub" id="damageItemName"></div>
+    <div class="hint" style="margin:6px 0 0">ผู้ถูกคิด: <b id="damageEmp"></b> · กดส่งแล้วจะ <b>รอ HR ตรวจสอบ &amp; อนุมัติที่หน้า payroll</b> ก่อน ถึงจะหักจริง (งวดสิ้นเดือน) — ยังไม่หักทันที</div>
+    <label>จำนวนเงินค่าเสียหาย (บาท)</label>
+    <input type="number" inputmode="decimal" id="damageAmt" placeholder="จำนวนเงิน">
+    <label>การแจ้ง</label>
+    <select id="damageReport">
+      <option value="">— ไม่ระบุ —</option>
+      <option value="self_reported">พนักงานแจ้งเอง</option>
+      <option value="caught">ตรวจเจอ/ถูกจับได้</option>
+    </select>
+    <label>รหัสเจ้าของ</label>
+    <input type="password" inputmode="numeric" id="damagePin" class="pin" placeholder="••••">
+    <div class="row-btns">
+      <button class="btn gray" id="damageCancelBtn">ยกเลิก</button>
+      <button class="btn" id="damageConfirmBtn" style="background:var(--danger)">ส่งให้ HR ตรวจ</button>
     </div>
   </div>
 </div>
@@ -452,6 +484,17 @@ function statusBadge(s){
   if(s==="deducted") return '<span class="badge b-ded">ตัดแล้ว</span>';
   return "";
 }
+// ---- damage charge (คิดค่าเสียหายจากพนักงาน) ----
+function damageBlock(it){
+  if(it.charge_status==='sent')
+    return `<div class="meta">💸 HR อนุมัติหักแล้ว: <b>฿${Number(it.damage_charge||0).toLocaleString()}</b> · ${empName(it.responsible_by)}</div>`;
+  if(it.charge_status==='pending_hr')
+    return `<div class="meta" style="color:var(--warn)">⏳ รอ HR อนุมัติ: <b>฿${Number(it.damage_charge||0).toLocaleString()}</b> · ${empName(it.responsible_by)}</div>`;
+  if(!it.responsible_by)
+    return `<div class="meta" style="color:var(--sub)">💸 ค่าเสียหาย: ระบุ "คนที่ทำ" ก่อนถึงจะคิดได้</div>`;
+  const rejected = it.charge_status==='rejected';
+  return `${rejected?`<div class="meta" style="color:var(--danger)">❌ HR ตีกลับ${it.charge_reject_reason?': '+it.charge_reject_reason:''}</div>`:''}<button class="actbtn" style="background:var(--danger)" onclick="openDamage(${it.id})">💸 ${rejected?'เสนอใหม่':'คิดค่าเสียหาย'}${it.damage_charge?` (฿${Number(it.damage_charge).toLocaleString()})`:''}</button>`;
+}
 // ---- transfer doc (ใบโอนย้ายระหว่างคลัง) ----
 function transferMeta(it){
   const txt = (it.transfer_no||it.transfer_date)
@@ -540,6 +583,7 @@ function renderApprove(){
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
         ${transferMeta(it)}
+        ${damageBlock(it)}
         <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
       </div>
     </div>`).join("");
@@ -626,6 +670,8 @@ function renderPrice(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
+        ${it.responsible_by?`<div class="meta">🧑‍🔧 คนที่ทำ: ${empName(it.responsible_by)}</div>`:""}
+        ${damageBlock(it)}
         <button class="actbtn sell" onclick="openPrice(${it.id})">💰 ตั้งราคา</button>
       </div>
     </div>`).join("");
@@ -768,6 +814,40 @@ window.saveBill = async id => {
   loadItems();
 };
 
+// ---- damage charge (คิดค่าเสียหาย) ----
+let damageId = null;
+window.openDamage = id => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  if(!it.responsible_by){ toast('ระบุ "คนที่ทำ" ก่อนถึงจะคิดค่าเสียหายได้'); return; }
+  if(it.charge_status==='sent'){ toast("รายการนี้ HR อนุมัติหักไปแล้ว"); return; }
+  if(it.charge_status==='pending_hr'){ toast("ส่งให้ HR แล้ว กำลังรอตรวจสอบ"); return; }
+  damageId = id;
+  $("#damageItemName").textContent = (it.code||"")+" "+(it.name||"");
+  $("#damageEmp").textContent = empName(it.responsible_by);
+  $("#damageAmt").value = it.damage_charge!=null ? it.damage_charge : "";
+  $("#damageReport").value = it.report_type || "";
+  $("#damagePin").value = "";
+  $("#damageModal").classList.add("show");
+};
+$("#damageCancelBtn").onclick = ()=> $("#damageModal").classList.remove("show");
+$("#damageConfirmBtn").onclick = async ()=>{
+  if(damageId==null) return;
+  const amt = parseFloat($("#damageAmt").value);
+  if(isNaN(amt)||amt<=0){ toast("กรอกจำนวนเงินให้ถูกต้อง"); return; }
+  const pin = $("#damagePin").value.trim();
+  if(!pin){ toast("ใส่รหัสเจ้าของ"); return; }
+  $("#damageConfirmBtn").disabled=true; $("#damageConfirmBtn").textContent="กำลังส่ง...";
+  const {data,error} = await db.rpc("stock_charge_damage",{
+    p_item_id:damageId, p_amount:amt, p_report_type:$("#damageReport").value||null, p_pin:pin
+  });
+  $("#damageConfirmBtn").disabled=false; $("#damageConfirmBtn").textContent="ส่งให้ HR ตรวจ";
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  if(!data || !data.ok){ toast(data&&data.error?data.error:"ส่งไม่สำเร็จ"); return; }
+  $("#damageModal").classList.remove("show");
+  toast("ส่งให้ HR ตรวจสอบแล้ว ⏳");
+  loadItems();
+};
+
 let apvId = null;
 window.openApprove = id => {
   const it = items.find(x=>x.id===id); if(!it) return;
@@ -850,6 +930,8 @@ $("#saveBtn").onclick = async () => {
       found_by: foundEmp ? foundEmp.id : null,
       found_by_name: foundName||null,
       responsible_by:$("#f_resp").value||null,
+      damage_charge: $("#f_damage").value!=="" ? parseFloat($("#f_damage").value) : null,
+      report_type: $("#f_reportType").value || null,
       cause:$("#f_cause").value.trim()||null,
       location:$("#f_loc").value.trim()||null,
       original_ref:$("#f_ref").value.trim()||null,
@@ -864,7 +946,8 @@ $("#saveBtn").onclick = async () => {
     await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor: foundEmp ? foundEmp.id : null, detail:{name, found_by_name:foundName}});
     toast("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)");
     // reset
-    ["f_name","f_cond","f_cause","f_loc","f_ref","f_transferNo","f_transferDate"].forEach(i=>$("#"+i).value="");
+    ["f_name","f_cond","f_cause","f_loc","f_ref","f_transferNo","f_transferDate","f_damage"].forEach(i=>$("#"+i).value="");
+    $("#f_reportType").value="";
     $("#f_found").value=""; $("#f_foundOther").value=""; $("#f_foundOther").style.display="none";
     $("#f_resp").value=""; $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
     loadItems(); backToList();
