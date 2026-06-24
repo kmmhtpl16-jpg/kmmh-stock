@@ -131,6 +131,7 @@
   <button data-tab="history">ประวัติการขาย <span id="histcount"></span></button>
   <button data-tab="review">รอตรวจสอบ/ตั้งราคา <span id="rcount"></span></button>
   <button data-tab="claim">เคลมโรงงาน <span id="ccount"></span></button>
+  <button data-tab="credit">📑 ใบลดหนี้</button>
   <button data-tab="summary">📊 สรุป</button>
 </div>
 
@@ -172,6 +173,15 @@
     <div id="claimPending"></div>
     <div class="sechead" style="margin-top:18px">② เคลมแล้ว</div>
     <div id="claimDone"></div>
+  </div>
+
+  <!-- CREDIT NOTES (ประวัติใบลดหนี้คืนโรงงาน) -->
+  <div id="tab-credit" style="display:none">
+    <div class="searchwrap">
+      <input id="creditSearch" placeholder="🔍 ค้นหา เลขใบลดหนี้ / ชื่อสินค้า / รหัส" autocomplete="off">
+    </div>
+    <div class="hint">รวมรายการที่ทำเรื่อง "คืนสินค้า" ให้โรงงาน จัดกลุ่มตามเลขใบลดหนี้ — กดที่ใบเพื่อดูรายการข้างใน</div>
+    <div id="creditList" style="margin-top:8px"></div>
   </div>
 
   <!-- SUMMARY -->
@@ -255,17 +265,27 @@
   <div class="sheet">
     <h3>🏭 บันทึกผลเคลมโรงงาน</h3>
     <div class="sub" id="claimItemName"></div>
-    <div class="hint" style="margin:6px 0 10px">โรงงานเคลมเสร็จแล้ว ได้อะไรกลับมา?</div>
+    <div class="hint" style="margin:6px 0 10px">เคลมโรงงานแบบไหน?</div>
     <div class="row-btns">
-      <button class="btn gray" id="claimGoodsBtn">📦 ได้สินค้าคืน</button>
-      <button class="btn gray" id="claimRefundBtn">💰 ได้เงินคืน</button>
+      <button class="btn gray" id="claimReturnBtn">📤 คืนสินค้า</button>
+      <button class="btn gray" id="claimKeepBtn">📦 ไม่คืน — เข้าคลังตำหนิ</button>
     </div>
-    <div id="claimFields" style="display:none">
-      <label id="claimDateLabel">วันที่รับคืน</label>
+
+    <!-- คืนสินค้า → บันทึกเลขใบลดหนี้ -->
+    <div id="claimReturnFields" style="display:none">
+      <label>วันที่คืนโรงงาน</label>
       <input type="date" id="claimDate">
-      <label id="claimRefLabel">เลขที่บิลรับคืนสินค้า (ถ้ามี)</label>
-      <input id="claimRef" placeholder="เว้นว่างได้">
+      <label>เลขที่ใบลดหนี้ (acc-billing) *</label>
+      <input id="claimCreditNo" list="openCreditNotes" placeholder="พิมพ์เลขใหม่ หรือเลือกใบที่เปิดอยู่">
+      <datalist id="openCreditNotes"></datalist>
+      <div class="hint" style="margin:6px 0 0">หลายรายการจากโรงงานเดียวกันใส่เลขใบลดหนี้เดียวกันได้ — ไปดูสรุปรวมที่แท็บ "📑 ใบลดหนี้"</div>
     </div>
+
+    <!-- ไม่คืน → เข้าคลังตำหนิ -->
+    <div id="claimKeepFields" style="display:none">
+      <div class="hint" style="margin:6px 0 0;color:var(--warn)">ของจะถูกย้ายเข้าคลังตำหนิ ไปขั้น "รอตั้งราคา" เพื่อขายต่อ</div>
+    </div>
+
     <button class="btn" id="claimSaveBtn" style="display:none">บันทึกผลเคลม</button>
     <button class="btn gray sm" id="claimCancelBtn" style="margin-top:8px">ยกเลิก</button>
   </div>
@@ -380,6 +400,8 @@ const BUCKET = "stock-photos";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let employees = [], items = [];
+let creditNotes = [], openCreditNotes = [];   // ใบลดหนี้คืนโรงงาน
+const creditOpen = {};                          // จำว่าใบไหนถูกกางดูอยู่
 const SELLERS = ["หมิว","เมย์","ฟาง","เบียร์","บ๋อ","โอ๋ 2","เนเน่","เอ"];
 const EXCLUDE = ["โด้"]; // พนักงานลาออก — ไม่โชว์ในช่องเลือก
 
@@ -391,12 +413,13 @@ const empName = id => { const e=employees.find(x=>x.id===id); return e ? (e.nick
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
-  ["list","history","review","claim","summary"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
+  ["list","history","review","claim","credit","summary"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
   $("#tab-add").style.display="none";
   if(b.dataset.tab==='summary') renderSummary();
+  if(b.dataset.tab==='credit') renderCreditNotes();
 });
 $("#addOpenBtn").onclick = ()=>{
-  ["list","history","review","claim","summary"].forEach(t=>$("#tab-"+t).style.display="none");
+  ["list","history","review","claim","credit","summary"].forEach(t=>$("#tab-"+t).style.display="none");
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
   $("#tab-add").style.display="block";
 };
@@ -424,6 +447,7 @@ async function loadItems(){
   if(error){ toast("โหลดรายการไม่ได้: "+error.message); return; }
   items = data||[];
   renderList(); renderApprove(); renderPrice(); renderHistory(); renderClaim();
+  loadCreditNotes();
   const aCnt=items.filter(it=>it.status==='pending_review').length;
   const pCnt=items.filter(it=>it.price_status==='pending'&&it.status==='in_stock').length;
   $("#rcount").textContent=(aCnt+pCnt)?("("+(aCnt+pCnt)+")"):"";
@@ -599,61 +623,163 @@ function renderClaim(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
-        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.cause?" · "+it.cause:""}</div>
-        ${transferMeta(it)}
+        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
+        ${damageBlock(it)}
         <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
-  $("#claimDone").innerHTML = done.length ? done.map(it=>`
+  // เคลมแล้ว = แบบคืนสินค้า (ที่เหลืออยู่ใน claim_done) — แบบไม่คืนจะย้ายไปคลังตำหนิ ไม่อยู่ตรงนี้
+  $("#claimDone").innerHTML = done.length ? done.map(it=>{
+    const isReturn = it.claim_result==='returned' || it.credit_note_no;
+    const legacyRef = it.claim_ref;
+    return `
     <div class="card item done">
       ${photoTag(it)}
       <div class="info">
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
-        <div class="meta">ผล: ${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_date?' · '+it.claim_date:''}</div>
-        ${it.claim_ref?`<div class="meta">${it.claim_result==='refund'?'🧾 ใบลดหนี้: ':'🧾 บิลรับคืน: '}<b>${it.claim_ref}</b></div>`:""}
-        ${transferMeta(it)}
+        <div class="meta">ผล: 📤 คืนสินค้าให้โรงงาน${it.claim_date?' · '+it.claim_date:''}</div>
+        ${it.credit_note_no?`<div class="meta">🧾 ใบลดหนี้: <b>${it.credit_note_no}</b></div>`
+          :(isReturn?'':(legacyRef?`<div class="meta">🧾 ${it.claim_result==='refund'?'ใบลดหนี้':'บิลรับคืน'}: <b>${legacyRef}</b></div>`:''))}
       </div>
-    </div>`).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
+    </div>`;}).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
 }
-let claimId = null, claimResult = null;
+let claimId = null, claimType = null;
 window.openClaim = id => {
   const it = items.find(x=>x.id===id); if(!it) return;
-  claimId = id; claimResult = null;
+  claimId = id; claimType = null;
   $("#claimItemName").textContent = (it.code||"")+" "+(it.name||"");
-  $("#claimGoodsBtn").classList.add("gray"); $("#claimRefundBtn").classList.add("gray");
-  $("#claimFields").style.display="none"; $("#claimSaveBtn").style.display="none";
+  $("#claimReturnBtn").classList.add("gray"); $("#claimKeepBtn").classList.add("gray");
+  $("#claimReturnFields").style.display="none"; $("#claimKeepFields").style.display="none";
+  $("#claimSaveBtn").style.display="none";
   $("#claimDate").value = new Date().toISOString().slice(0,10);
-  $("#claimRef").value = "";
+  $("#claimCreditNo").value = "";
+  // เติม datalist ด้วยเลขใบลดหนี้ที่ยังเปิดอยู่
+  const opts = (openCreditNotes||[]).map(n=>`<option value="${n}">`).join("");
+  $("#openCreditNotes").innerHTML = opts;
   $("#claimModal").classList.add("show");
 };
-function pickClaim(result){
-  claimResult = result;
-  $("#claimGoodsBtn").classList.toggle("gray", result!=='goods');
-  $("#claimRefundBtn").classList.toggle("gray", result!=='refund');
-  if(result==='goods'){ $("#claimDateLabel").textContent="วันที่รับคืน"; $("#claimRefLabel").textContent="เลขที่บิลรับคืนสินค้า (ถ้ามี)"; }
-  else { $("#claimDateLabel").textContent="วันที่รับเงินคืน"; $("#claimRefLabel").textContent="เลขที่ใบลดหนี้ (ถ้ามี)"; }
-  $("#claimFields").style.display="block"; $("#claimSaveBtn").style.display="block";
+function pickClaimType(t){
+  claimType = t;
+  $("#claimReturnBtn").classList.toggle("gray", t!=='return');
+  $("#claimKeepBtn").classList.toggle("gray", t!=='keep');
+  $("#claimReturnFields").style.display = t==='return' ? "block" : "none";
+  $("#claimKeepFields").style.display   = t==='keep'   ? "block" : "none";
+  $("#claimSaveBtn").style.display="block";
+  $("#claimSaveBtn").textContent = t==='keep' ? "ย้ายเข้าคลังตำหนิ" : "บันทึกผลเคลม";
 }
-$("#claimGoodsBtn").onclick = ()=> pickClaim('goods');
-$("#claimRefundBtn").onclick = ()=> pickClaim('refund');
+$("#claimReturnBtn").onclick = ()=> pickClaimType('return');
+$("#claimKeepBtn").onclick   = ()=> pickClaimType('keep');
 $("#claimCancelBtn").onclick = ()=> $("#claimModal").classList.remove("show");
 $("#claimSaveBtn").onclick = async ()=>{
-  if(claimId==null || !claimResult){ toast("เลือกผลเคลมก่อน"); return; }
-  $("#claimSaveBtn").disabled=true; $("#claimSaveBtn").textContent="กำลังบันทึก...";
-  const {error} = await db.from("stock_items").update({
-    status:'claim_done', claim_result:claimResult,
-    claim_date: $("#claimDate").value||null,
-    claim_ref: $("#claimRef").value.trim()||null,
-    claim_at:new Date().toISOString()
-  }).eq("id",claimId);
-  $("#claimSaveBtn").disabled=false; $("#claimSaveBtn").textContent="บันทึกผลเคลม";
-  if(error){ toast("ผิดพลาด: "+error.message); return; }
-  await db.from("stock_audit").insert({item_id:claimId, action:'claim_done', actor:null, detail:{result:claimResult, date:$("#claimDate").value, ref:$("#claimRef").value.trim()}});
-  $("#claimModal").classList.remove("show");
-  toast("บันทึกผลเคลมแล้ว ✅");
-  loadItems();
+  if(claimId==null || !claimType){ toast("เลือกแบบเคลมก่อน"); return; }
+  const btn=$("#claimSaveBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="กำลังบันทึก...";
+  try{
+    if(claimType==='return'){
+      const creditNo = $("#claimCreditNo").value.trim();
+      if(!creditNo){ toast("ใส่เลขที่ใบลดหนี้ก่อน"); btn.disabled=false; btn.textContent=old; return; }
+      // เปิดหัวใบลดหนี้ถ้ายังไม่มี (เพิ่มรายการเข้าใบเดิมได้)
+      await db.from("stock_credit_notes").upsert({note_no:creditNo}, {onConflict:"note_no", ignoreDuplicates:true});
+      const {error} = await db.from("stock_items").update({
+        status:'claim_done', claim_result:'returned',
+        credit_note_no:creditNo,
+        claim_date: $("#claimDate").value||null,
+        claim_ref: creditNo,
+        claim_at:new Date().toISOString()
+      }).eq("id",claimId);
+      if(error) throw error;
+      await db.from("stock_audit").insert({item_id:claimId, action:'claim_return', actor:null, detail:{credit_note_no:creditNo, date:$("#claimDate").value}});
+      toast("บันทึกคืนสินค้าแล้ว → ใบลดหนี้ "+creditNo+" ✅");
+    } else {
+      // ไม่คืนสินค้า → เข้าคลังตำหนิ ข้ามไปรอตั้งราคา
+      const {error} = await db.from("stock_items").update({
+        status:'in_stock', price_status:'pending',
+        claim_result:'kept', claim_at:new Date().toISOString()
+      }).eq("id",claimId);
+      if(error) throw error;
+      await db.from("stock_audit").insert({item_id:claimId, action:'claim_keep', actor:null, detail:{to:'คลังตำหนิ/รอตั้งราคา'}});
+      toast("ย้ายเข้าคลังตำหนิแล้ว → ไปตั้งราคา ✅");
+    }
+    $("#claimModal").classList.remove("show");
+    await loadItems();
+  }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
+  btn.disabled=false; btn.textContent=old;
 };
+
+// ---- credit notes (ใบลดหนี้คืนโรงงาน) ----
+async function loadCreditNotes(){
+  // หัวใบ (สถานะ เปิด/ปิด)
+  const heads = await db.from("stock_credit_notes").select("*");
+  // รายการสินค้าที่คืนโรงงานทั้งหมด (อิงเลขใบลดหนี้)
+  const its = await db.from("stock_items").select("id,code,name,photo_urls,credit_note_no,claim_date,claim_at")
+                .not("credit_note_no","is",null).order("claim_at",{ascending:false});
+  const headMap = {};
+  (heads.data||[]).forEach(h=>headMap[h.note_no]=h);
+  const map = {};
+  (its.data||[]).forEach(it=>{
+    const k=it.credit_note_no;
+    if(!map[k]) map[k]={ note_no:k, items:[], head:headMap[k]||null };
+    map[k].items.push(it);
+  });
+  // ใบที่มีหัวแต่ยังไม่มีรายการ ก็ให้แสดงด้วย
+  Object.keys(headMap).forEach(k=>{ if(!map[k]) map[k]={note_no:k, items:[], head:headMap[k]}; });
+  creditNotes = Object.values(map).sort((a,b)=>{
+    const ax=(a.head&&a.head.created_at)||(a.items[0]&&a.items[0].claim_at)||"";
+    const bx=(b.head&&b.head.created_at)||(b.items[0]&&b.items[0].claim_at)||"";
+    return bx.localeCompare(ax);
+  });
+  openCreditNotes = creditNotes.filter(c=>!(c.head&&c.head.status==='closed')).map(c=>c.note_no);
+  if($("#tab-credit").style.display!=="none") renderCreditNotes();
+}
+function renderCreditNotes(){
+  const q = ($("#creditSearch").value||"").trim().toLowerCase();
+  let arr = creditNotes;
+  if(q) arr = creditNotes.filter(c=>
+    c.note_no.toLowerCase().includes(q) ||
+    c.items.some(it=>(it.name||"").toLowerCase().includes(q) || (it.code||"").toLowerCase().includes(q))
+  );
+  if(!arr.length){ $("#creditList").innerHTML='<div class="empty">'+(q?"ไม่พบใบลดหนี้ที่ค้นหา":"ยังไม่มีใบลดหนี้คืนโรงงาน")+'</div>'; return; }
+  $("#creditList").innerHTML = arr.map(c=>{
+    const closed = c.head && c.head.status==='closed';
+    const opened = !!creditOpen[c.note_no];
+    const badge = closed
+      ? '<span style="background:#e2e8f0;color:#475569;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600">ปิดแล้ว</span>'
+      : '<span style="background:#dcfce7;color:#166534;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600">เปิดอยู่</span>';
+    const inner = !opened ? "" : `
+      <div style="margin-top:8px;border-top:1px solid #eef2f7;padding-top:8px">
+        ${c.items.length? c.items.map(it=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 0">
+            ${(it.photo_urls&&it.photo_urls[0])?`<img src="${it.photo_urls[0]}" style="width:38px;height:38px;border-radius:6px;object-fit:cover" onclick="event.stopPropagation();openLightbox(${it.id})">`:`<div class="noimg2" style="width:38px;height:38px;border-radius:6px"></div>`}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600">${it.name||""}</div>
+              <div class="meta">${it.code||""}${it.claim_date?" · คืน "+it.claim_date:""}</div>
+            </div>
+          </div>`).join("") : '<div class="meta">— ยังไม่มีรายการในใบนี้ —</div>'}
+        ${!closed?`<button class="btn gray sm" style="margin-top:8px" onclick="event.stopPropagation();closeCreditNote('${c.note_no}')">🔒 ปิดใบลดหนี้นี้</button>`:""}
+      </div>`;
+    return `
+    <div class="card" style="cursor:pointer" onclick="toggleCreditNote('${c.note_no}')">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:15px">🧾 ${c.note_no}</div>
+          <div class="meta">${c.items.length} รายการ${c.head&&c.head.created_at?" · เปิด "+c.head.created_at.slice(0,10):""}${closed&&c.head.closed_at?" · ปิด "+c.head.closed_at.slice(0,10):""}</div>
+        </div>
+        ${badge}
+        <span style="font-size:18px;color:var(--sub)">${opened?"▾":"▸"}</span>
+      </div>
+      ${inner}
+    </div>`;
+  }).join("");
+}
+window.toggleCreditNote = no => { creditOpen[no]=!creditOpen[no]; renderCreditNotes(); };
+window.closeCreditNote = async no => {
+  if(!confirm('ปิดใบลดหนี้ '+no+'? (สรุปยอดแล้ว — จะไม่เพิ่มของเข้าใบนี้อีก)')) return;
+  const {error}=await db.from("stock_credit_notes").upsert({note_no:no, status:'closed', closed_at:new Date().toISOString()}, {onConflict:"note_no"});
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  toast("ปิดใบลดหนี้ "+no+" แล้ว");
+  await loadCreditNotes();
+};
+$("#creditSearch").oninput = ()=> renderCreditNotes();
 
 // ---- pricing (owner PIN, via modal) ----
 function renderPrice(){
@@ -965,7 +1091,7 @@ async function renderSummary(){
   if(error){ $("#summaryBody").innerHTML='<div class="empty">โหลดไม่ได้: '+error.message+'</div>'; return; }
   const s=data||{}; const B=n=>Number(n||0).toLocaleString();
   const tap='cursor:pointer';
-  const prod=(s.by_product||[]), cul=(s.by_culprit||[]);
+  const prod=(s.by_product||[]), cul=(s.by_culprit||[]), rep=(s.by_reporter||[]);
   const rowLine=(l,r)=>`<div class="meta" style="display:flex;justify-content:space-between;gap:8px"><span>${l}</span><span style="white-space:nowrap">${r}</span></div>`;
   $("#summaryBody").innerHTML = `
     <div class="card" style="${tap}" onclick="openSumDetail('sold')"><div class="sechead">🟢 ขายออกเดือนนี้ ›</div>
@@ -977,7 +1103,7 @@ async function renderSummary(){
       <div class="meta">${s.onhand_cnt||0} ชิ้น (คิดมูลค่าเฉพาะที่ตั้งราคาแล้ว)</div>
     </div>
     <div class="card" style="${tap}" onclick="openSumDetail('claim')"><div class="sechead">🏭 เคลมโรงงานเดือนนี้ ›</div>
-      <div class="meta">📦 ได้สินค้าคืน ${s.claim_goods||0} ชิ้น · 💰 ได้เงินคืน ${s.claim_refund||0} ชิ้น</div>
+      <div class="meta">📤 คืนสินค้า (ใบลดหนี้) ${s.claim_returned||s.claim_goods||0} ชิ้น</div>
     </div>
     <div class="card" style="${tap}" onclick="openSumDetail('backlog')"><div class="sechead">⏳ ค้าง / ต้องจัดการ (ปัจจุบัน) ›</div>
       <div class="meta">รออนุมัติ ${s.backlog_review||0} · รอตั้งราคา ${s.backlog_price||0} · รอใส่บิล ${s.backlog_bill||0} · รอเคลม ${s.backlog_claim||0}</div>
@@ -985,8 +1111,12 @@ async function renderSummary(){
     <div class="card"><div class="sechead">📦 สรุปตามรายสินค้า (เดือนนี้)</div>
       ${prod.length ? prod.map(p=>rowLine(p.name, `${p.cnt} ชิ้น · ฿${B(p.val)}`)).join("") : '<div class="meta">— ไม่มีของเพิ่มเดือนนี้ —</div>'}
     </div>
+    <div class="card"><div class="sechead">🙋 สรุปตามคนแจ้ง (เดือนนี้)</div>
+      ${rep.length ? rep.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">— ไม่มีของเพิ่มเดือนนี้ —</div>'}
+    </div>
     <div class="card"><div class="sechead">🧑‍🔧 สรุปตามคนที่ทำชำรุด (เดือนนี้)</div>
-      ${cul.length ? cul.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">—</div>'}
+      <div class="meta" style="color:var(--sub);margin-bottom:4px">เฉพาะรายการที่ระบุ "คนที่ทำ" ไว้</div>
+      ${cul.length ? cul.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">— ยังไม่มีรายการที่ระบุคนทำ —</div>'}
     </div>`;
 }
 $("#sumMonth").onchange = renderSummary;
@@ -1007,7 +1137,7 @@ window.openSumDetail = async kind => {
   } else if(kind==='claim'){
     title="🏭 เคลมโรงงาน "+mv;
     rows=items.filter(it=>it.status==='claim_done'&&it.claim_at&&new Date(it.claim_at)>=d0&&new Date(it.claim_at)<d1)
-      .map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_ref?' · '+it.claim_ref:''}${it.claim_date?' · '+it.claim_date:''}</div></div></div>`);
+      .map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">📤 คืนสินค้า${(it.credit_note_no||it.claim_ref)?' · 🧾 '+(it.credit_note_no||it.claim_ref):''}${it.claim_date?' · '+it.claim_date:''}</div></div></div>`);
   } else if(kind==='backlog'){
     title="⏳ ค้าง / ต้องจัดการ";
     const lbl={pending_review:'รออนุมัติ',sold_pending:'รอใส่บิล',claim_pending:'รอเคลม'};
