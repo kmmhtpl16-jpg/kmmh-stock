@@ -210,7 +210,9 @@
       <textarea id="f_cond" placeholder="เช่น มุมล่างบิ่น, สีถลอกด้านข้าง"></textarea>
       <div class="row2">
         <div><label>คนแจ้ง (คนเจอ)</label><select id="f_found"></select><input id="f_foundOther" placeholder="ระบุชื่อ" style="display:none;margin-top:6px"></div>
-        <div><label>คนที่ทำ (ถ้ารู้)</label><select id="f_resp"></select></div>
+        <div><label>คนที่ทำ (เลือกได้หลายคน)</label><select id="f_resp"></select>
+          <div id="f_respChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+        </div>
       </div>
       <label>สาเหตุ</label>
       <input id="f_cause" placeholder="เช่น ขนของตก / มาแบบนี้จากโรงงาน">
@@ -462,6 +464,22 @@ async function loadEmployees(){
 $("#sellSeller").onchange = e => { $("#sellSellerOther").style.display = e.target.value==="__other" ? "block" : "none"; };
 $("#f_found").onchange = e => { $("#f_foundOther").style.display = e.target.value==="__other" ? "block" : "none"; };
 $("#f_docFile").onchange = e => { const f=e.target.files[0]; $("#f_docFileName").textContent = f ? ("📎 "+f.name) : ""; };
+// ---- คนที่ทำ: เลือกได้หลายคน (chips) ----
+let respList=[], respExternal=false;
+function chipHtml(label,onx,bg,col){ return `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${col};padding:3px 10px;border-radius:14px;font-size:13px;font-weight:600">${label} <span style="cursor:pointer" onclick="${onx}">✕</span></span>`; }
+function renderRespChips(){
+  const box=$("#f_respChips"); if(!box) return;
+  if(respExternal){ box.innerHTML=chipHtml("🚚 บุคคลภายนอก","clearRespExternal()","#fef3c7","#92400e"); return; }
+  box.innerHTML = respList.map(id=>chipHtml(empName(id),`removeResp('${id}')`,"#eff6ff","#1d4ed8")).join("");
+}
+window.removeResp=id=>{ respList=respList.filter(x=>x!==id); renderRespChips(); };
+window.clearRespExternal=()=>{ respExternal=false; renderRespChips(); };
+$("#f_resp").onchange = e => {
+  const v=e.target.value; if(!v) return;
+  if(v==="__external"){ respExternal=true; respList=[]; }
+  else { respExternal=false; if(!respList.includes(v)) respList.push(v); }
+  e.target.value=""; renderRespChips();
+};
 
 // ---- load items ----
 let filter = "all", searchQ = "";
@@ -544,7 +562,11 @@ function damageBlock(it){
 }
 // ---- transfer doc (ใบโอนย้ายระหว่างคลัง) ----
 function docLabel(t){ return t==='credit_note'?'ใบลดหนี้':t==='transfer'?'ใบโอนย้าย':'เอกสาร'; }
-function respName(it){ return it.responsible_external ? "บุคคลภายนอก (ขนส่ง/ลูกค้า)" : (it.responsible_by ? empName(it.responsible_by) : ""); }
+function respName(it){
+  if(it.responsible_external) return "บุคคลภายนอก (ขนส่ง/ลูกค้า)";
+  const ids=(it.responsible_ids&&it.responsible_ids.length)?it.responsible_ids:(it.responsible_by?[it.responsible_by]:[]);
+  return ids.map(empName).join(", ");
+}
 function transferMeta(it){
   const no = it.doc_no||it.transfer_no;
   const has = no || it.doc_file_url || it.transfer_date;
@@ -1001,7 +1023,8 @@ window.openDamage = id => {
   if(it.charge_status==='pending_hr'){ toast("ส่งให้ HR แล้ว กำลังรอตรวจสอบ"); return; }
   damageId = id;
   $("#damageItemName").textContent = (it.code||"")+" "+(it.name||"");
-  $("#damageEmp").textContent = empName(it.responsible_by);
+  const nResp=(it.responsible_ids&&it.responsible_ids.length)?it.responsible_ids.length:(it.responsible_by?1:0);
+  $("#damageEmp").textContent = respName(it) + (nResp>1?` (หาร ${nResp} คน เท่ากันตอน HR อนุมัติ)`:"");
   $("#damageAmt").value = it.damage_charge!=null ? it.damage_charge : "";
   $("#damageReport").value = it.report_type || "";
   $("#damageModal").classList.add("show");
@@ -1099,9 +1122,8 @@ $("#saveBtn").onclick = async () => {
     const foundSel = $("#f_found").value;
     const foundName = foundSel==="__other" ? $("#f_foundOther").value.trim() : foundSel;
     const foundEmp = employees.find(e=>(e.nickname||e.full_name)===foundName);
-    // คนที่ทำ — อาจเป็นพนักงาน หรือ บุคคลภายนอก
-    const respVal = $("#f_resp").value;
-    const isExternal = respVal === "__external";
+    // คนที่ทำ — เลือกได้หลายคน หรือ บุคคลภายนอก
+    const isExternal = respExternal;
     // แนบไฟล์เอกสาร (ไม่บังคับ) — รับ jpg/pdf
     let docUrl = null;
     const docFile = $("#f_docFile").files[0];
@@ -1118,7 +1140,8 @@ $("#saveBtn").onclick = async () => {
       condition:$("#f_cond").value.trim()||null,
       found_by: foundEmp ? foundEmp.id : null,
       found_by_name: foundName||null,
-      responsible_by: isExternal ? null : (respVal||null),
+      responsible_by: isExternal ? null : (respList[0]||null),
+      responsible_ids: (isExternal || respList.length===0) ? null : respList,
       responsible_external: isExternal,
       damage_charge: $("#f_damage").value!=="" ? parseFloat($("#f_damage").value) : null,
       report_type: $("#f_reportType").value || null,
@@ -1149,7 +1172,8 @@ $("#saveBtn").onclick = async () => {
     $("#f_reportType").value=""; $("#f_docType").value="";
     $("#f_docFile").value=""; $("#f_docFileName").textContent="";
     $("#f_found").value=""; $("#f_foundOther").value=""; $("#f_foundOther").style.display="none";
-    $("#f_resp").value=""; $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
+    $("#f_resp").value=""; respList=[]; respExternal=false; renderRespChips();
+    $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
     loadItems(); backToList();
   }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
   $("#saveBtn").disabled=false; $("#saveBtn").textContent="บันทึกเข้าคลัง";
