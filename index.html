@@ -672,6 +672,7 @@ function renderClaim(){
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${(it.responsible_by||it.responsible_external)?" · ทำ: "+respName(it):""}${it.cause?" · "+it.cause:""}</div>
+        ${transferMeta(it)}
         ${damageBlock(it)}
         <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
       </div>
@@ -689,6 +690,7 @@ function renderClaim(){
         <div class="meta">ผล: 📤 คืนสินค้าให้โรงงาน${it.claim_date?' · '+it.claim_date:''}</div>
         ${it.credit_note_no?`<div class="meta">🧾 ใบลดหนี้: <b>${it.credit_note_no}</b></div>`
           :(isReturn?'':(legacyRef?`<div class="meta">🧾 ${it.claim_result==='refund'?'ใบลดหนี้':'บิลรับคืน'}: <b>${legacyRef}</b></div>`:''))}
+        ${transferMeta(it)}
       </div>
     </div>`;}).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
 }
