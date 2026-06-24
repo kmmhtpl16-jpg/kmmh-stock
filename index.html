@@ -180,7 +180,7 @@
     <div class="searchwrap">
       <input id="creditSearch" placeholder="🔍 ค้นหา เลขใบลดหนี้ / ชื่อสินค้า / รหัส" autocomplete="off">
     </div>
-    <div class="hint">รวมรายการที่ทำเรื่อง "คืนสินค้า" ให้โรงงาน จัดกลุ่มตามเลขใบลดหนี้ — กดที่ใบเพื่อดูรายการข้างใน</div>
+    <div class="hint">รวมรายการใบลดหนี้ — ทั้งของที่แนบเอกสารใบลดหนี้ตอนเพิ่มสินค้า (⏳ ยังไม่คืน) และของที่กดคืนสินค้าแล้ว (✅ คืนแล้ว) จัดกลุ่มตามเลขใบลดหนี้ กดที่ใบเพื่อดูรายการข้างใน</div>
     <div id="creditList" style="margin-top:8px"></div>
   </div>
 
@@ -760,22 +760,26 @@ $("#claimSaveBtn").onclick = async ()=>{
 async function loadCreditNotes(){
   // หัวใบ (สถานะ เปิด/ปิด)
   const heads = await db.from("stock_credit_notes").select("*");
-  // รายการสินค้าที่คืนโรงงานทั้งหมด (อิงเลขใบลดหนี้)
-  const its = await db.from("stock_items").select("id,code,name,photo_urls,credit_note_no,claim_date,claim_at")
-                .not("credit_note_no","is",null).order("claim_at",{ascending:false});
+  // รายการที่เกี่ยวกับใบลดหนี้ — ทั้งของที่กดคืนสินค้าแล้ว (credit_note_no)
+  // และของที่แนบเอกสารใบลดหนี้ตอนเพิ่มสินค้า (doc_type=credit_note + doc_no)
+  const its = await db.from("stock_items")
+    .select("id,code,name,photo_urls,credit_note_no,doc_type,doc_no,doc_file_url,claim_date,claim_at,status,created_at")
+    .or("credit_note_no.not.is.null,and(doc_type.eq.credit_note,doc_no.not.is.null)")
+    .order("created_at",{ascending:false});
   const headMap = {};
   (heads.data||[]).forEach(h=>headMap[h.note_no]=h);
   const map = {};
   (its.data||[]).forEach(it=>{
-    const k=it.credit_note_no;
+    const k=it.credit_note_no || it.doc_no;   // เลขใบลดหนี้ที่ใช้จัดกลุ่ม
+    if(!k) return;
     if(!map[k]) map[k]={ note_no:k, items:[], head:headMap[k]||null };
     map[k].items.push(it);
   });
   // ใบที่มีหัวแต่ยังไม่มีรายการ ก็ให้แสดงด้วย
   Object.keys(headMap).forEach(k=>{ if(!map[k]) map[k]={note_no:k, items:[], head:headMap[k]}; });
   creditNotes = Object.values(map).sort((a,b)=>{
-    const ax=(a.head&&a.head.created_at)||(a.items[0]&&a.items[0].claim_at)||"";
-    const bx=(b.head&&b.head.created_at)||(b.items[0]&&b.items[0].claim_at)||"";
+    const ax=(a.head&&a.head.created_at)||(a.items[0]&&(a.items[0].claim_at||a.items[0].created_at))||"";
+    const bx=(b.head&&b.head.created_at)||(b.items[0]&&(b.items[0].claim_at||b.items[0].created_at))||"";
     return bx.localeCompare(ax);
   });
   openCreditNotes = creditNotes.filter(c=>!(c.head&&c.head.status==='closed')).map(c=>c.note_no);
@@ -802,7 +806,7 @@ function renderCreditNotes(){
             ${(it.photo_urls&&it.photo_urls[0])?`<img src="${it.photo_urls[0]}" style="width:38px;height:38px;border-radius:6px;object-fit:cover" onclick="event.stopPropagation();openLightbox(${it.id})">`:`<div class="noimg2" style="width:38px;height:38px;border-radius:6px"></div>`}
             <div style="flex:1;min-width:0">
               <div style="font-size:13px;font-weight:600">${it.name||""}</div>
-              <div class="meta">${it.code||""}${it.claim_date?" · คืน "+it.claim_date:""}</div>
+              <div class="meta">${it.code||""} · ${it.status==='claim_done'?("✅ คืนแล้ว"+(it.claim_date?" "+it.claim_date:"")):"⏳ ยังไม่คืน"}${it.doc_file_url?` · <a href="${it.doc_file_url}" target="_blank" onclick="event.stopPropagation()" style="color:var(--brand)">📎 ไฟล์</a>`:""}</div>
             </div>
           </div>`).join("") : '<div class="meta">— ยังไม่มีรายการในใบนี้ —</div>'}
         ${!closed?`<button class="btn gray sm" style="margin-top:8px" onclick="event.stopPropagation();closeCreditNote('${c.note_no}')">🔒 ปิดใบลดหนี้นี้</button>`:""}
