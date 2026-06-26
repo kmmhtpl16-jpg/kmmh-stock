@@ -119,6 +119,17 @@
 </style>
 </head>
 <body>
+<!-- LOGIN GATE (session required) -->
+<div id="loginGate" style="position:fixed;inset:0;background:#16243f;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px">
+  <div style="background:#fff;border-radius:16px;padding:26px 20px;width:100%;max-width:340px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.3)">
+    <div style="font-size:42px">📦</div>
+    <h2 style="margin:8px 0 2px;font-size:18px;color:#1c2024">คลังของตำหนิ</h2>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:16px">กิจมั่งมีโฮม — ใส่รหัสเพื่อเข้าใช้งาน</div>
+    <input type="password" inputmode="numeric" id="gatePin" placeholder="••••" autocomplete="off" style="width:100%;padding:13px;border:1px solid #e3e6ea;border-radius:10px;font-size:22px;letter-spacing:6px;text-align:center;background:#fff">
+    <button id="gateBtn" style="width:100%;padding:14px;border:none;border-radius:10px;background:#2f8f5b;color:#fff;font-size:16px;font-weight:600;margin-top:14px">เข้าใช้งาน</button>
+    <div id="gateMsg" style="font-size:13px;color:#c0392b;margin-top:10px;min-height:18px"></div>
+  </div>
+</div>
 <header>
   <div class="hbar">
     <h1 style="font-size:15px;margin:0">📦 คลังของตำหนิ — กิจมั่งมีโฮม</h1>
@@ -131,7 +142,6 @@
   <button data-tab="history">ประวัติการขาย <span id="histcount"></span></button>
   <button data-tab="review">รอตรวจสอบ/ตั้งราคา <span id="rcount"></span></button>
   <button data-tab="claim">เคลมโรงงาน <span id="ccount"></span></button>
-  <button data-tab="credit">📑 ใบลดหนี้</button>
   <button data-tab="summary">📊 สรุป</button>
 </div>
 
@@ -175,15 +185,6 @@
     <div id="claimDone"></div>
   </div>
 
-  <!-- CREDIT NOTES (ประวัติใบลดหนี้คืนโรงงาน) -->
-  <div id="tab-credit" style="display:none">
-    <div class="searchwrap">
-      <input id="creditSearch" placeholder="🔍 ค้นหา เลขใบลดหนี้ / ชื่อสินค้า / รหัส" autocomplete="off">
-    </div>
-    <div class="hint">รวมรายการใบลดหนี้ — ทั้งของที่แนบเอกสารใบลดหนี้ตอนเพิ่มสินค้า (⏳ ยังไม่คืน) และของที่กดคืนสินค้าแล้ว (✅ คืนแล้ว) จัดกลุ่มตามเลขใบลดหนี้ กดที่ใบเพื่อดูรายการข้างใน</div>
-    <div id="creditList" style="margin-top:8px"></div>
-  </div>
-
   <!-- SUMMARY -->
   <div id="tab-summary" style="display:none">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -210,41 +211,17 @@
       <textarea id="f_cond" placeholder="เช่น มุมล่างบิ่น, สีถลอกด้านข้าง"></textarea>
       <div class="row2">
         <div><label>คนแจ้ง (คนเจอ)</label><select id="f_found"></select><input id="f_foundOther" placeholder="ระบุชื่อ" style="display:none;margin-top:6px"></div>
-        <div><label>คนที่ทำ (เลือกได้หลายคน)</label><select id="f_resp"></select>
-          <div id="f_respChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
-        </div>
+        <div><label>คนที่ทำ (ถ้ารู้)</label><select id="f_resp"></select></div>
       </div>
       <label>สาเหตุ</label>
       <input id="f_cause" placeholder="เช่น ขนของตก / มาแบบนี้จากโรงงาน">
-      <div class="row2">
-        <div><label>ค่าเสียหายจากพนักงาน (บาท)</label><input type="number" inputmode="decimal" id="f_damage" placeholder="เว้นว่าง = ยังไม่คิด"></div>
-        <div><label>การแจ้ง</label><select id="f_reportType">
-          <option value="">— ไม่ระบุ —</option>
-          <option value="self_reported">พนักงานแจ้งเอง</option>
-          <option value="caught">ตรวจเจอ/ถูกจับได้</option>
-        </select></div>
-      </div>
-      <div class="hint" style="margin:0 0 4px">ใส่ค่าเสียหาย + "คนที่ทำ" แล้วกดบันทึก = ส่งให้ HR ตรวจที่หน้า payroll อัตโนมัติ (ไม่หักทันที) · ถ้าไม่ใส่คนที่ทำจะแค่บันทึกไว้ก่อน ค่อยส่งทีหลังที่แท็บ "รอตรวจสอบ/ตั้งราคา"</div>
       <div class="row2">
         <div><label>จุดวางในคลัง</label><input id="f_loc" placeholder="เช่น ชั้น B2"></div>
         <div><label>รหัสตัวสินค้าเดิม (ถ้ามี)</label><input id="f_ref" placeholder="ACC-BILLING"></div>
       </div>
       <div class="row2">
-        <div><label>ประเภทเอกสารอ้างอิง</label>
-          <select id="f_docType">
-            <option value="">— ไม่มี / เลือก —</option>
-            <option value="transfer">ใบโอนย้าย (STR)</option>
-            <option value="credit_note">ใบลดหนี้ (NC)</option>
-          </select>
-        </div>
-        <div><label>เลขที่เอกสาร</label><input id="f_docNo" placeholder="เช่น STR69-00001 / NC6906-004"></div>
-      </div>
-      <div class="row2">
-        <div><label>วันที่เอกสาร</label><input type="date" id="f_docDate"></div>
-        <div><label>แนบไฟล์ (jpg/pdf)</label>
-          <input type="file" id="f_docFile" accept=".jpg,.jpeg,.pdf,image/jpeg,application/pdf">
-          <div id="f_docFileName" class="hint" style="margin:4px 0 0"></div>
-        </div>
+        <div><label>เลขที่ใบโอนย้าย (STR)</label><input id="f_transferNo" placeholder="เช่น STR69-00001"></div>
+        <div><label>วันที่โอนย้าย</label><input type="date" id="f_transferDate"></div>
       </div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
         <input type="checkbox" id="f_claim" style="width:auto"> เป็นของที่จะเคลมโรงงาน
@@ -280,27 +257,17 @@
   <div class="sheet">
     <h3>🏭 บันทึกผลเคลมโรงงาน</h3>
     <div class="sub" id="claimItemName"></div>
-    <div class="hint" style="margin:6px 0 10px">เคลมโรงงานแบบไหน?</div>
+    <div class="hint" style="margin:6px 0 10px">โรงงานเคลมเสร็จแล้ว ได้อะไรกลับมา?</div>
     <div class="row-btns">
-      <button class="btn gray" id="claimReturnBtn">📤 คืนสินค้า</button>
-      <button class="btn gray" id="claimKeepBtn">📦 ไม่คืน — เข้าคลังตำหนิ</button>
+      <button class="btn gray" id="claimGoodsBtn">📦 ได้สินค้าคืน</button>
+      <button class="btn gray" id="claimRefundBtn">💰 ได้เงินคืน</button>
     </div>
-
-    <!-- คืนสินค้า → บันทึกเลขใบลดหนี้ -->
-    <div id="claimReturnFields" style="display:none">
-      <label>วันที่คืนโรงงาน</label>
+    <div id="claimFields" style="display:none">
+      <label id="claimDateLabel">วันที่รับคืน</label>
       <input type="date" id="claimDate">
-      <label>เลขที่ใบลดหนี้ (acc-billing) *</label>
-      <input id="claimCreditNo" list="openCreditNotes" placeholder="พิมพ์เลขใหม่ หรือเลือกใบที่เปิดอยู่">
-      <datalist id="openCreditNotes"></datalist>
-      <div class="hint" style="margin:6px 0 0">หลายรายการจากโรงงานเดียวกันใส่เลขใบลดหนี้เดียวกันได้ — ไปดูสรุปรวมที่แท็บ "📑 ใบลดหนี้"</div>
+      <label id="claimRefLabel">เลขที่บิลรับคืนสินค้า (ถ้ามี)</label>
+      <input id="claimRef" placeholder="เว้นว่างได้">
     </div>
-
-    <!-- ไม่คืน → เข้าคลังตำหนิ -->
-    <div id="claimKeepFields" style="display:none">
-      <div class="hint" style="margin:6px 0 0;color:var(--warn)">ของจะถูกย้ายเข้าคลังตำหนิ ไปขั้น "รอตั้งราคา" เพื่อขายต่อ</div>
-    </div>
-
     <button class="btn" id="claimSaveBtn" style="display:none">บันทึกผลเคลม</button>
     <button class="btn gray sm" id="claimCancelBtn" style="margin-top:8px">ยกเลิก</button>
   </div>
@@ -328,21 +295,12 @@
 <!-- TRANSFER doc (เลขที่ใบโอนย้ายระหว่างคลัง) -->
 <div class="modal" id="transferModal">
   <div class="sheet">
-    <h3>📄 เอกสารอ้างอิง</h3>
+    <h3>📄 ใบโอนย้ายระหว่างคลัง</h3>
     <div class="sub" id="transferItemName"></div>
-    <label>ประเภทเอกสาร</label>
-    <select id="transferTypeInput">
-      <option value="">— ไม่มี / เลือก —</option>
-      <option value="transfer">ใบโอนย้าย (STR)</option>
-      <option value="credit_note">ใบลดหนี้ (NC)</option>
-    </select>
-    <label>เลขที่เอกสาร</label>
-    <input id="transferNoInput" placeholder="เช่น STR69-00001 / NC6906-004">
-    <label>วันที่เอกสาร</label>
+    <label>เลขที่ใบโอนย้าย (STR)</label>
+    <input id="transferNoInput" placeholder="เช่น STR69-00001">
+    <label>วันที่โอนย้าย</label>
     <input type="date" id="transferDateInput">
-    <label>แนบไฟล์ (jpg/pdf)</label>
-    <input type="file" id="transferFileInput" accept=".jpg,.jpeg,.pdf,image/jpeg,application/pdf">
-    <div id="transferFileCur" class="hint" style="margin:4px 0 0"></div>
     <button class="btn" id="transferSaveBtn" style="margin-top:10px">บันทึก</button>
     <button class="btn gray sm" id="transferCancelBtn" style="margin-top:8px">ยกเลิก</button>
   </div>
@@ -381,27 +339,6 @@
   </div>
 </div>
 
-<!-- DAMAGE charge bottom sheet (owner PIN) -->
-<div class="modal" id="damageModal">
-  <div class="sheet">
-    <h3>💸 ส่งค่าเสียหายให้ HR ตรวจ</h3>
-    <div class="sub" id="damageItemName"></div>
-    <div class="hint" style="margin:6px 0 0">ผู้ถูกคิด: <b id="damageEmp"></b> · กดส่งแล้วจะ <b>รอ HR ตรวจสอบ &amp; อนุมัติที่หน้า payroll</b> ก่อน ถึงจะหักจริง (งวดสิ้นเดือน) — ยังไม่หักทันที</div>
-    <label>จำนวนเงินค่าเสียหาย (บาท)</label>
-    <input type="number" inputmode="decimal" id="damageAmt" placeholder="จำนวนเงิน">
-    <label>การแจ้ง</label>
-    <select id="damageReport">
-      <option value="">— ไม่ระบุ —</option>
-      <option value="self_reported">พนักงานแจ้งเอง</option>
-      <option value="caught">ตรวจเจอ/ถูกจับได้</option>
-    </select>
-    <div class="row-btns">
-      <button class="btn gray" id="damageCancelBtn">ยกเลิก</button>
-      <button class="btn" id="damageConfirmBtn" style="background:var(--danger)">ส่งให้ HR ตรวจ</button>
-    </div>
-  </div>
-</div>
-
 <!-- APPROVE bottom sheet (warehouse PIN) -->
 <div class="modal" id="apvModal">
   <div class="sheet">
@@ -424,8 +361,6 @@ const BUCKET = "stock-photos";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let employees = [], items = [];
-let creditNotes = [], openCreditNotes = [];   // ใบลดหนี้คืนโรงงาน
-const creditOpen = {};                          // จำว่าใบไหนถูกกางดูอยู่
 const SELLERS = ["หมิว","เมย์","ฟาง","เบียร์","บ๋อ","โอ๋ 2","เนเน่","เอ"];
 const EXCLUDE = ["โด้"]; // พนักงานลาออก — ไม่โชว์ในช่องเลือก
 
@@ -437,13 +372,12 @@ const empName = id => { const e=employees.find(x=>x.id===id); return e ? (e.nick
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
-  ["list","history","review","claim","credit","summary"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
+  ["list","history","review","claim","summary"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
   $("#tab-add").style.display="none";
   if(b.dataset.tab==='summary') renderSummary();
-  if(b.dataset.tab==='credit') renderCreditNotes();
 });
 $("#addOpenBtn").onclick = ()=>{
-  ["list","history","review","claim","credit","summary"].forEach(t=>$("#tab-"+t).style.display="none");
+  ["list","history","review","claim","summary"].forEach(t=>$("#tab-"+t).style.display="none");
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
   $("#tab-add").style.display="block";
 };
@@ -455,7 +389,7 @@ async function loadEmployees(){
   const {data,error} = await db.from("employees").select("id,nickname,full_name,is_active").eq("is_active",true).order("nickname");
   if(error){ toast("โหลดพนักงานไม่ได้: "+error.message); return; }
   employees = data||[];
-  const empOpts = '<option value="">— เลือก —</option>'+employees.filter(e=>!EXCLUDE.includes(e.nickname)).map(e=>`<option value="${e.id}">${e.nickname||e.full_name}</option>`).join("")+'<option value="__external">🚚 บุคคลภายนอก (ขนส่ง/ลูกค้า)</option>';
+  const empOpts = '<option value="">— เลือก —</option>'+employees.filter(e=>!EXCLUDE.includes(e.nickname)).map(e=>`<option value="${e.id}">${e.nickname||e.full_name}</option>`).join("");
   const frontOpts = '<option value="">— เลือก —</option>'+SELLERS.map(n=>`<option value="${n}">${n}</option>`).join("")+'<option value="__other">อื่นๆ (ระบุ)</option>';
   $("#f_found").innerHTML = frontOpts;   // คนแจ้ง = รายชื่อผู้ขาย + อื่นๆ
   $("#f_resp").innerHTML = empOpts;       // คนที่ทำ = พนักงาน (ตัดคนลาออก)
@@ -463,23 +397,6 @@ async function loadEmployees(){
 }
 $("#sellSeller").onchange = e => { $("#sellSellerOther").style.display = e.target.value==="__other" ? "block" : "none"; };
 $("#f_found").onchange = e => { $("#f_foundOther").style.display = e.target.value==="__other" ? "block" : "none"; };
-$("#f_docFile").onchange = e => { const f=e.target.files[0]; $("#f_docFileName").textContent = f ? ("📎 "+f.name) : ""; };
-// ---- คนที่ทำ: เลือกได้หลายคน (chips) ----
-let respList=[], respExternal=false;
-function chipHtml(label,onx,bg,col){ return `<span style="display:inline-flex;align-items:center;gap:5px;background:${bg};color:${col};padding:3px 10px;border-radius:14px;font-size:13px;font-weight:600">${label} <span style="cursor:pointer" onclick="${onx}">✕</span></span>`; }
-function renderRespChips(){
-  const box=$("#f_respChips"); if(!box) return;
-  if(respExternal){ box.innerHTML=chipHtml("🚚 บุคคลภายนอก","clearRespExternal()","#fef3c7","#92400e"); return; }
-  box.innerHTML = respList.map(id=>chipHtml(empName(id),`removeResp('${id}')`,"#eff6ff","#1d4ed8")).join("");
-}
-window.removeResp=id=>{ respList=respList.filter(x=>x!==id); renderRespChips(); };
-window.clearRespExternal=()=>{ respExternal=false; renderRespChips(); };
-$("#f_resp").onchange = e => {
-  const v=e.target.value; if(!v) return;
-  if(v==="__external"){ respExternal=true; respList=[]; }
-  else { respExternal=false; if(!respList.includes(v)) respList.push(v); }
-  e.target.value=""; renderRespChips();
-};
 
 // ---- load items ----
 let filter = "all", searchQ = "";
@@ -488,7 +405,6 @@ async function loadItems(){
   if(error){ toast("โหลดรายการไม่ได้: "+error.message); return; }
   items = data||[];
   renderList(); renderApprove(); renderPrice(); renderHistory(); renderClaim();
-  loadCreditNotes();
   const aCnt=items.filter(it=>it.status==='pending_review').length;
   const pCnt=items.filter(it=>it.price_status==='pending'&&it.status==='in_stock').length;
   $("#rcount").textContent=(aCnt+pCnt)?("("+(aCnt+pCnt)+")"):"";
@@ -547,75 +463,35 @@ function statusBadge(s){
   if(s==="deducted") return '<span class="badge b-ded">ตัดแล้ว</span>';
   return "";
 }
-// ---- damage charge (คิดค่าเสียหายจากพนักงาน) ----
-function damageBlock(it){
-  if(it.responsible_external)
-    return `<div class="meta" style="color:var(--sub)">🚚 บุคคลภายนอก (ขนส่ง/ลูกค้า) — ไม่คิดค่าเสียหายพนักงาน</div>`;
-  if(it.charge_status==='sent')
-    return `<div class="meta">💸 HR อนุมัติหักแล้ว: <b>฿${Number(it.damage_charge||0).toLocaleString()}</b> · ${empName(it.responsible_by)}</div>`;
-  if(it.charge_status==='pending_hr')
-    return `<div class="meta" style="color:var(--warn)">⏳ รอ HR อนุมัติ: <b>฿${Number(it.damage_charge||0).toLocaleString()}</b> · ${empName(it.responsible_by)}</div>`;
-  if(!it.responsible_by)
-    return `<div class="meta" style="color:var(--sub)">💸 ค่าเสียหาย: ระบุ "คนที่ทำ" ก่อนถึงจะคิดได้</div>`;
-  const rejected = it.charge_status==='rejected';
-  return `${rejected?`<div class="meta" style="color:var(--danger)">❌ HR ตีกลับ${it.charge_reject_reason?': '+it.charge_reject_reason:''}</div>`:''}<button class="actbtn" style="background:var(--danger)" onclick="openDamage(${it.id})">💸 ${rejected?'เสนอใหม่':'ส่งค่าเสียหายให้ HR'}${it.damage_charge?` (฿${Number(it.damage_charge).toLocaleString()})`:''}</button>`;
-}
 // ---- transfer doc (ใบโอนย้ายระหว่างคลัง) ----
-function docLabel(t){ return t==='credit_note'?'ใบลดหนี้':t==='transfer'?'ใบโอนย้าย':'เอกสาร'; }
-function respName(it){
-  if(it.responsible_external) return "บุคคลภายนอก (ขนส่ง/ลูกค้า)";
-  const ids=(it.responsible_ids&&it.responsible_ids.length)?it.responsible_ids:(it.responsible_by?[it.responsible_by]:[]);
-  return ids.map(empName).join(", ");
-}
 function transferMeta(it){
-  const no = it.doc_no||it.transfer_no;
-  const has = no || it.doc_file_url || it.transfer_date;
-  const txt = has
-    ? `📄 ${docLabel(it.doc_type)}: <b>${no||"-"}</b>${it.transfer_date?" · "+it.transfer_date:""}`
-    : `📄 เอกสารอ้างอิง: <span style="color:var(--warn);font-weight:600">ยังไม่ใส่</span>`;
-  const fileLink = it.doc_file_url ? ` · <a href="${it.doc_file_url}" target="_blank" onclick="event.stopPropagation()" style="color:var(--brand)">📎 ไฟล์</a>` : "";
-  return `<div class="meta"><span onclick="event.stopPropagation();openTransfer(${it.id})" style="cursor:pointer">${txt} <span style="color:var(--brand);font-size:16px">✎</span></span>${fileLink}</div>`;
+  const txt = (it.transfer_no||it.transfer_date)
+    ? `📄 โอนย้าย: <b>${it.transfer_no||"-"}</b>${it.transfer_date?" · "+it.transfer_date:""}`
+    : `📄 ใบโอนย้าย: <span style="color:var(--warn);font-weight:600">ยังไม่ใส่</span>`;
+  return `<div class="meta" onclick="event.stopPropagation();openTransfer(${it.id})" style="cursor:pointer">${txt} <span style="color:var(--brand);font-size:16px">✎</span></div>`;
 }
 let transferId=null;
 window.openTransfer = id => {
   const it=items.find(x=>x.id===id); if(!it) return;
   transferId=id;
   $("#transferItemName").textContent=(it.code||"")+" "+(it.name||"");
-  $("#transferTypeInput").value=it.doc_type||"";
-  $("#transferNoInput").value=it.doc_no||it.transfer_no||"";
+  $("#transferNoInput").value=it.transfer_no||"";
   $("#transferDateInput").value=it.transfer_date||"";
-  $("#transferFileInput").value="";
-  $("#transferFileCur").innerHTML = it.doc_file_url
-    ? `ไฟล์ปัจจุบัน: <a href="${it.doc_file_url}" target="_blank" style="color:var(--brand)">📎 เปิดดู</a> (อัปใหม่เพื่อแทนที่)`
-    : "ยังไม่มีไฟล์แนบ";
   $("#transferModal").classList.add("show");
 };
 $("#transferCancelBtn").onclick=()=>$("#transferModal").classList.remove("show");
 $("#transferSaveBtn").onclick=async()=>{
   if(transferId==null) return;
   const btn=$("#transferSaveBtn"); btn.disabled=true; btn.textContent="กำลังบันทึก...";
-  try{
-    const upd={
-      doc_type:$("#transferTypeInput").value||null,
-      doc_no:$("#transferNoInput").value.trim()||null,
-      transfer_no:$("#transferNoInput").value.trim()||null,
-      transfer_date:$("#transferDateInput").value||null
-    };
-    const f=$("#transferFileInput").files[0];
-    if(f){
-      const isPdf=f.type==='application/pdf'||/\.pdf$/i.test(f.name);
-      const path=`docs/${Date.now()}_${Math.random().toString(36).slice(2,7)}.${isPdf?'pdf':'jpg'}`;
-      const up=await db.storage.from(BUCKET).upload(path,f,{upsert:false,contentType:f.type||(isPdf?'application/pdf':'image/jpeg')});
-      if(up.error) throw up.error;
-      upd.doc_file_url=db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-    }
-    const r=await db.from("stock_items").update(upd).eq("id",transferId);
-    if(r.error) throw r.error;
-    toast("บันทึกเอกสารแล้ว");
-    $("#transferModal").classList.remove("show");
-    await loadItems();
-  }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
+  const upd=await db.from("stock_items").update({
+    transfer_no:$("#transferNoInput").value.trim()||null,
+    transfer_date:$("#transferDateInput").value||null
+  }).eq("id",transferId);
   btn.disabled=false; btn.textContent="บันทึก";
+  if(upd.error){ toast("ผิดพลาด: "+upd.error.message); return; }
+  toast("บันทึกใบโอนย้ายแล้ว");
+  $("#transferModal").classList.remove("show");
+  await loadItems();
 };
 function renderList(){
   const q = searchQ.trim().toLowerCase();
@@ -673,9 +549,8 @@ function renderApprove(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
-        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${(it.responsible_by||it.responsible_external)?" · ทำ: "+respName(it):""}${it.cause?" · "+it.cause:""}</div>
+        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.responsible_by?" · ทำ: "+empName(it.responsible_by):""}${it.cause?" · "+it.cause:""}</div>
         ${transferMeta(it)}
-        ${damageBlock(it)}
         <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
       </div>
     </div>`).join("");
@@ -693,169 +568,61 @@ function renderClaim(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
-        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${(it.responsible_by||it.responsible_external)?" · ทำ: "+respName(it):""}${it.cause?" · "+it.cause:""}</div>
+        <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${it.cause?" · "+it.cause:""}</div>
         ${transferMeta(it)}
-        ${damageBlock(it)}
         <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
-  // เคลมแล้ว = แบบคืนสินค้า (ที่เหลืออยู่ใน claim_done) — แบบไม่คืนจะย้ายไปคลังตำหนิ ไม่อยู่ตรงนี้
-  $("#claimDone").innerHTML = done.length ? done.map(it=>{
-    const isReturn = it.claim_result==='returned' || it.credit_note_no;
-    const legacyRef = it.claim_ref;
-    return `
+  $("#claimDone").innerHTML = done.length ? done.map(it=>`
     <div class="card item done">
       ${photoTag(it)}
       <div class="info">
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
-        <div class="meta">ผล: 📤 คืนสินค้าให้โรงงาน${it.claim_date?' · '+it.claim_date:''}</div>
-        ${it.credit_note_no?`<div class="meta">🧾 ใบลดหนี้: <b>${it.credit_note_no}</b></div>`
-          :(isReturn?'':(legacyRef?`<div class="meta">🧾 ${it.claim_result==='refund'?'ใบลดหนี้':'บิลรับคืน'}: <b>${legacyRef}</b></div>`:''))}
+        <div class="meta">ผล: ${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_date?' · '+it.claim_date:''}</div>
+        ${it.claim_ref?`<div class="meta">${it.claim_result==='refund'?'🧾 ใบลดหนี้: ':'🧾 บิลรับคืน: '}<b>${it.claim_ref}</b></div>`:""}
         ${transferMeta(it)}
       </div>
-    </div>`;}).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
+    </div>`).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
 }
-let claimId = null, claimType = null;
+let claimId = null, claimResult = null;
 window.openClaim = id => {
   const it = items.find(x=>x.id===id); if(!it) return;
-  claimId = id; claimType = null;
+  claimId = id; claimResult = null;
   $("#claimItemName").textContent = (it.code||"")+" "+(it.name||"");
-  $("#claimReturnBtn").classList.add("gray"); $("#claimKeepBtn").classList.add("gray");
-  $("#claimReturnFields").style.display="none"; $("#claimKeepFields").style.display="none";
-  $("#claimSaveBtn").style.display="none";
+  $("#claimGoodsBtn").classList.add("gray"); $("#claimRefundBtn").classList.add("gray");
+  $("#claimFields").style.display="none"; $("#claimSaveBtn").style.display="none";
   $("#claimDate").value = new Date().toISOString().slice(0,10);
-  $("#claimCreditNo").value = "";
-  // เติม datalist ด้วยเลขใบลดหนี้ที่ยังเปิดอยู่
-  const opts = (openCreditNotes||[]).map(n=>`<option value="${n}">`).join("");
-  $("#openCreditNotes").innerHTML = opts;
+  $("#claimRef").value = "";
   $("#claimModal").classList.add("show");
 };
-function pickClaimType(t){
-  claimType = t;
-  $("#claimReturnBtn").classList.toggle("gray", t!=='return');
-  $("#claimKeepBtn").classList.toggle("gray", t!=='keep');
-  $("#claimReturnFields").style.display = t==='return' ? "block" : "none";
-  $("#claimKeepFields").style.display   = t==='keep'   ? "block" : "none";
-  $("#claimSaveBtn").style.display="block";
-  $("#claimSaveBtn").textContent = t==='keep' ? "ย้ายเข้าคลังตำหนิ" : "บันทึกผลเคลม";
+function pickClaim(result){
+  claimResult = result;
+  $("#claimGoodsBtn").classList.toggle("gray", result!=='goods');
+  $("#claimRefundBtn").classList.toggle("gray", result!=='refund');
+  if(result==='goods'){ $("#claimDateLabel").textContent="วันที่รับคืน"; $("#claimRefLabel").textContent="เลขที่บิลรับคืนสินค้า (ถ้ามี)"; }
+  else { $("#claimDateLabel").textContent="วันที่รับเงินคืน"; $("#claimRefLabel").textContent="เลขที่ใบลดหนี้ (ถ้ามี)"; }
+  $("#claimFields").style.display="block"; $("#claimSaveBtn").style.display="block";
 }
-$("#claimReturnBtn").onclick = ()=> pickClaimType('return');
-$("#claimKeepBtn").onclick   = ()=> pickClaimType('keep');
+$("#claimGoodsBtn").onclick = ()=> pickClaim('goods');
+$("#claimRefundBtn").onclick = ()=> pickClaim('refund');
 $("#claimCancelBtn").onclick = ()=> $("#claimModal").classList.remove("show");
 $("#claimSaveBtn").onclick = async ()=>{
-  if(claimId==null || !claimType){ toast("เลือกแบบเคลมก่อน"); return; }
-  const btn=$("#claimSaveBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="กำลังบันทึก...";
-  try{
-    if(claimType==='return'){
-      const creditNo = $("#claimCreditNo").value.trim();
-      if(!creditNo){ toast("ใส่เลขที่ใบลดหนี้ก่อน"); btn.disabled=false; btn.textContent=old; return; }
-      // เปิดหัวใบลดหนี้ถ้ายังไม่มี (เพิ่มรายการเข้าใบเดิมได้)
-      await db.from("stock_credit_notes").upsert({note_no:creditNo}, {onConflict:"note_no", ignoreDuplicates:true});
-      const {error} = await db.from("stock_items").update({
-        status:'claim_done', claim_result:'returned',
-        credit_note_no:creditNo,
-        claim_date: $("#claimDate").value||null,
-        claim_ref: creditNo,
-        claim_at:new Date().toISOString()
-      }).eq("id",claimId);
-      if(error) throw error;
-      await db.from("stock_audit").insert({item_id:claimId, action:'claim_return', actor:null, detail:{credit_note_no:creditNo, date:$("#claimDate").value}});
-      toast("บันทึกคืนสินค้าแล้ว → ใบลดหนี้ "+creditNo+" ✅");
-    } else {
-      // ไม่คืนสินค้า → เข้าคลังตำหนิ ข้ามไปรอตั้งราคา
-      const {error} = await db.from("stock_items").update({
-        status:'in_stock', price_status:'pending',
-        claim_result:'kept', claim_at:new Date().toISOString()
-      }).eq("id",claimId);
-      if(error) throw error;
-      await db.from("stock_audit").insert({item_id:claimId, action:'claim_keep', actor:null, detail:{to:'คลังตำหนิ/รอตั้งราคา'}});
-      toast("ย้ายเข้าคลังตำหนิแล้ว → ไปตั้งราคา ✅");
-    }
-    $("#claimModal").classList.remove("show");
-    await loadItems();
-  }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
-  btn.disabled=false; btn.textContent=old;
-};
-
-// ---- credit notes (ใบลดหนี้คืนโรงงาน) ----
-async function loadCreditNotes(){
-  // หัวใบ (สถานะ เปิด/ปิด)
-  const heads = await db.from("stock_credit_notes").select("*");
-  // รายการที่เกี่ยวกับใบลดหนี้ — ทั้งของที่กดคืนสินค้าแล้ว (credit_note_no)
-  // และของที่แนบเอกสารใบลดหนี้ตอนเพิ่มสินค้า (doc_type=credit_note + doc_no)
-  const its = await db.from("stock_items")
-    .select("id,code,name,photo_urls,credit_note_no,doc_type,doc_no,doc_file_url,claim_date,claim_at,status,created_at")
-    .or("credit_note_no.not.is.null,and(doc_type.eq.credit_note,doc_no.not.is.null)")
-    .order("created_at",{ascending:false});
-  const headMap = {};
-  (heads.data||[]).forEach(h=>headMap[h.note_no]=h);
-  const map = {};
-  (its.data||[]).forEach(it=>{
-    const k=it.credit_note_no || it.doc_no;   // เลขใบลดหนี้ที่ใช้จัดกลุ่ม
-    if(!k) return;
-    if(!map[k]) map[k]={ note_no:k, items:[], head:headMap[k]||null };
-    map[k].items.push(it);
-  });
-  // ใบที่มีหัวแต่ยังไม่มีรายการ ก็ให้แสดงด้วย
-  Object.keys(headMap).forEach(k=>{ if(!map[k]) map[k]={note_no:k, items:[], head:headMap[k]}; });
-  creditNotes = Object.values(map).sort((a,b)=>{
-    const ax=(a.head&&a.head.created_at)||(a.items[0]&&(a.items[0].claim_at||a.items[0].created_at))||"";
-    const bx=(b.head&&b.head.created_at)||(b.items[0]&&(b.items[0].claim_at||b.items[0].created_at))||"";
-    return bx.localeCompare(ax);
-  });
-  openCreditNotes = creditNotes.filter(c=>!(c.head&&c.head.status==='closed')).map(c=>c.note_no);
-  if($("#tab-credit").style.display!=="none") renderCreditNotes();
-}
-function renderCreditNotes(){
-  const q = ($("#creditSearch").value||"").trim().toLowerCase();
-  let arr = creditNotes;
-  if(q) arr = creditNotes.filter(c=>
-    c.note_no.toLowerCase().includes(q) ||
-    c.items.some(it=>(it.name||"").toLowerCase().includes(q) || (it.code||"").toLowerCase().includes(q))
-  );
-  if(!arr.length){ $("#creditList").innerHTML='<div class="empty">'+(q?"ไม่พบใบลดหนี้ที่ค้นหา":"ยังไม่มีใบลดหนี้คืนโรงงาน")+'</div>'; return; }
-  $("#creditList").innerHTML = arr.map(c=>{
-    const closed = c.head && c.head.status==='closed';
-    const opened = !!creditOpen[c.note_no];
-    const badge = closed
-      ? '<span style="background:#e2e8f0;color:#475569;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600">ปิดแล้ว</span>'
-      : '<span style="background:#dcfce7;color:#166534;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:600">เปิดอยู่</span>';
-    const inner = !opened ? "" : `
-      <div style="margin-top:8px;border-top:1px solid #eef2f7;padding-top:8px">
-        ${c.items.length? c.items.map(it=>`
-          <div style="display:flex;align-items:center;gap:8px;padding:5px 0">
-            ${(it.photo_urls&&it.photo_urls[0])?`<img src="${it.photo_urls[0]}" style="width:38px;height:38px;border-radius:6px;object-fit:cover" onclick="event.stopPropagation();openLightbox(${it.id})">`:`<div class="noimg2" style="width:38px;height:38px;border-radius:6px"></div>`}
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px;font-weight:600">${it.name||""}</div>
-              <div class="meta">${it.code||""} · ${it.status==='claim_done'?("✅ คืนแล้ว"+(it.claim_date?" "+it.claim_date:"")):"⏳ ยังไม่คืน"}${it.doc_file_url?` · <a href="${it.doc_file_url}" target="_blank" onclick="event.stopPropagation()" style="color:var(--brand)">📎 ไฟล์</a>`:""}</div>
-            </div>
-          </div>`).join("") : '<div class="meta">— ยังไม่มีรายการในใบนี้ —</div>'}
-        ${!closed?`<button class="btn gray sm" style="margin-top:8px" onclick="event.stopPropagation();closeCreditNote('${c.note_no}')">🔒 ปิดใบลดหนี้นี้</button>`:""}
-      </div>`;
-    return `
-    <div class="card" style="cursor:pointer" onclick="toggleCreditNote('${c.note_no}')">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:700;font-size:15px">🧾 ${c.note_no}</div>
-          <div class="meta">${c.items.length} รายการ${c.head&&c.head.created_at?" · เปิด "+c.head.created_at.slice(0,10):""}${closed&&c.head.closed_at?" · ปิด "+c.head.closed_at.slice(0,10):""}</div>
-        </div>
-        ${badge}
-        <span style="font-size:18px;color:var(--sub)">${opened?"▾":"▸"}</span>
-      </div>
-      ${inner}
-    </div>`;
-  }).join("");
-}
-window.toggleCreditNote = no => { creditOpen[no]=!creditOpen[no]; renderCreditNotes(); };
-window.closeCreditNote = async no => {
-  if(!confirm('ปิดใบลดหนี้ '+no+'? (สรุปยอดแล้ว — จะไม่เพิ่มของเข้าใบนี้อีก)')) return;
-  const {error}=await db.from("stock_credit_notes").upsert({note_no:no, status:'closed', closed_at:new Date().toISOString()}, {onConflict:"note_no"});
+  if(claimId==null || !claimResult){ toast("เลือกผลเคลมก่อน"); return; }
+  $("#claimSaveBtn").disabled=true; $("#claimSaveBtn").textContent="กำลังบันทึก...";
+  const {error} = await db.from("stock_items").update({
+    status:'claim_done', claim_result:claimResult,
+    claim_date: $("#claimDate").value||null,
+    claim_ref: $("#claimRef").value.trim()||null,
+    claim_at:new Date().toISOString()
+  }).eq("id",claimId);
+  $("#claimSaveBtn").disabled=false; $("#claimSaveBtn").textContent="บันทึกผลเคลม";
   if(error){ toast("ผิดพลาด: "+error.message); return; }
-  toast("ปิดใบลดหนี้ "+no+" แล้ว");
-  await loadCreditNotes();
+  await db.from("stock_audit").insert({item_id:claimId, action:'claim_done', actor:null, detail:{result:claimResult, date:$("#claimDate").value, ref:$("#claimRef").value.trim()}});
+  $("#claimModal").classList.remove("show");
+  toast("บันทึกผลเคลมแล้ว ✅");
+  loadItems();
 };
-$("#creditSearch").oninput = ()=> renderCreditNotes();
 
 // ---- pricing (owner PIN, via modal) ----
 function renderPrice(){
@@ -870,8 +637,6 @@ function renderPrice(){
         <div class="code">${it.code||""}</div>
         <div class="nm">${it.name||""}</div>
         ${it.condition?`<div class="meta">🔧 ${it.condition}</div>`:""}
-        ${(it.responsible_by||it.responsible_external)?`<div class="meta">🧑‍🔧 คนที่ทำ: ${respName(it)}</div>`:""}
-        ${damageBlock(it)}
         <button class="actbtn sell" onclick="openPrice(${it.id})">💰 ตั้งราคา</button>
       </div>
     </div>`).join("");
@@ -1014,38 +779,6 @@ window.saveBill = async id => {
   loadItems();
 };
 
-// ---- damage charge (คิดค่าเสียหาย) ----
-let damageId = null;
-window.openDamage = id => {
-  const it = items.find(x=>x.id===id); if(!it) return;
-  if(!it.responsible_by){ toast('ระบุ "คนที่ทำ" ก่อนถึงจะคิดค่าเสียหายได้'); return; }
-  if(it.charge_status==='sent'){ toast("รายการนี้ HR อนุมัติหักไปแล้ว"); return; }
-  if(it.charge_status==='pending_hr'){ toast("ส่งให้ HR แล้ว กำลังรอตรวจสอบ"); return; }
-  damageId = id;
-  $("#damageItemName").textContent = (it.code||"")+" "+(it.name||"");
-  const nResp=(it.responsible_ids&&it.responsible_ids.length)?it.responsible_ids.length:(it.responsible_by?1:0);
-  $("#damageEmp").textContent = respName(it) + (nResp>1?` (หาร ${nResp} คน เท่ากันตอน HR อนุมัติ)`:"");
-  $("#damageAmt").value = it.damage_charge!=null ? it.damage_charge : "";
-  $("#damageReport").value = it.report_type || "";
-  $("#damageModal").classList.add("show");
-};
-$("#damageCancelBtn").onclick = ()=> $("#damageModal").classList.remove("show");
-$("#damageConfirmBtn").onclick = async ()=>{
-  if(damageId==null) return;
-  const amt = parseFloat($("#damageAmt").value);
-  if(isNaN(amt)||amt<=0){ toast("กรอกจำนวนเงินให้ถูกต้อง"); return; }
-  $("#damageConfirmBtn").disabled=true; $("#damageConfirmBtn").textContent="กำลังส่ง...";
-  const {data,error} = await db.rpc("stock_charge_damage",{
-    p_item_id:damageId, p_amount:amt, p_report_type:$("#damageReport").value||null
-  });
-  $("#damageConfirmBtn").disabled=false; $("#damageConfirmBtn").textContent="ส่งให้ HR ตรวจ";
-  if(error){ toast("ผิดพลาด: "+error.message); return; }
-  if(!data || !data.ok){ toast(data&&data.error?data.error:"ส่งไม่สำเร็จ"); return; }
-  $("#damageModal").classList.remove("show");
-  toast("ส่งให้ HR ตรวจสอบแล้ว ⏳");
-  loadItems();
-};
-
 let apvId = null;
 window.openApprove = id => {
   const it = items.find(x=>x.id===id); if(!it) return;
@@ -1122,37 +855,17 @@ $("#saveBtn").onclick = async () => {
     const foundSel = $("#f_found").value;
     const foundName = foundSel==="__other" ? $("#f_foundOther").value.trim() : foundSel;
     const foundEmp = employees.find(e=>(e.nickname||e.full_name)===foundName);
-    // คนที่ทำ — เลือกได้หลายคน หรือ บุคคลภายนอก
-    const isExternal = respExternal;
-    // แนบไฟล์เอกสาร (ไม่บังคับ) — รับ jpg/pdf
-    let docUrl = null;
-    const docFile = $("#f_docFile").files[0];
-    if(docFile){
-      const isPdf = docFile.type==='application/pdf' || /\.pdf$/i.test(docFile.name);
-      const ext = isPdf ? 'pdf' : 'jpg';
-      const path=`docs/${Date.now()}_${Math.random().toString(36).slice(2,7)}.${ext}`;
-      const up=await db.storage.from(BUCKET).upload(path, docFile, {upsert:false, contentType: docFile.type||(isPdf?'application/pdf':'image/jpeg')});
-      if(up.error) throw up.error;
-      docUrl=db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-    }
     const rec={
       name, photo_urls:urls,
       condition:$("#f_cond").value.trim()||null,
       found_by: foundEmp ? foundEmp.id : null,
       found_by_name: foundName||null,
-      responsible_by: isExternal ? null : (respList[0]||null),
-      responsible_ids: (isExternal || respList.length===0) ? null : respList,
-      responsible_external: isExternal,
-      damage_charge: $("#f_damage").value!=="" ? parseFloat($("#f_damage").value) : null,
-      report_type: $("#f_reportType").value || null,
+      responsible_by:$("#f_resp").value||null,
       cause:$("#f_cause").value.trim()||null,
       location:$("#f_loc").value.trim()||null,
       original_ref:$("#f_ref").value.trim()||null,
-      doc_type:$("#f_docType").value||null,
-      doc_no:$("#f_docNo").value.trim()||null,
-      doc_file_url:docUrl,
-      transfer_no:$("#f_docNo").value.trim()||null,
-      transfer_date:$("#f_docDate").value||null,
+      transfer_no:$("#f_transferNo").value.trim()||null,
+      transfer_date:$("#f_transferDate").value||null,
       is_factory_claim:$("#f_claim").checked,
       status: $("#f_claim").checked ? 'claim_pending' : 'pending_review',
       created_by: foundEmp ? foundEmp.id : null
@@ -1160,20 +873,11 @@ $("#saveBtn").onclick = async () => {
     const ins=await db.from("stock_items").insert(rec).select().single();
     if(ins.error) throw ins.error;
     await db.from("stock_audit").insert({item_id:ins.data.id, action:"created", actor: foundEmp ? foundEmp.id : null, detail:{name, found_by_name:foundName}});
-    // ถ้ากรอกค่าเสียหาย + มีคนที่ทำ + ไม่ใช่ของเคลมโรงงาน → ส่งให้ HR ตรวจทันที
-    let hrSent=false;
-    if(rec.damage_charge && rec.damage_charge>0 && rec.responsible_by && !rec.is_factory_claim){
-      const rpc=await db.rpc("stock_charge_damage",{p_item_id:ins.data.id, p_amount:rec.damage_charge, p_report_type:rec.report_type||null});
-      if(!rpc.error && rpc.data && rpc.data.ok) hrSent=true;
-    }
-    toast(hrSent ? ("บันทึก "+ins.data.code+" + ส่งค่าเสียหายให้ HR แล้ว ⏳") : ("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)"));
+    toast("บันทึกแล้ว: "+ins.data.code+" (รอตรวจสอบ)");
     // reset
-    ["f_name","f_cond","f_cause","f_loc","f_ref","f_docNo","f_docDate","f_damage"].forEach(i=>$("#"+i).value="");
-    $("#f_reportType").value=""; $("#f_docType").value="";
-    $("#f_docFile").value=""; $("#f_docFileName").textContent="";
+    ["f_name","f_cond","f_cause","f_loc","f_ref","f_transferNo","f_transferDate"].forEach(i=>$("#"+i).value="");
     $("#f_found").value=""; $("#f_foundOther").value=""; $("#f_foundOther").style.display="none";
-    $("#f_resp").value=""; respList=[]; respExternal=false; renderRespChips();
-    $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
+    $("#f_resp").value=""; $("#f_claim").checked=false; $("#photo").value=""; photoFiles=[]; renderThumbs();
     loadItems(); backToList();
   }catch(err){ toast("ผิดพลาด: "+(err.message||err)); }
   $("#saveBtn").disabled=false; $("#saveBtn").textContent="บันทึกเข้าคลัง";
@@ -1188,7 +892,7 @@ async function renderSummary(){
   if(error){ $("#summaryBody").innerHTML='<div class="empty">โหลดไม่ได้: '+error.message+'</div>'; return; }
   const s=data||{}; const B=n=>Number(n||0).toLocaleString();
   const tap='cursor:pointer';
-  const prod=(s.by_product||[]), cul=(s.by_culprit||[]), rep=(s.by_reporter||[]);
+  const prod=(s.by_product||[]), cul=(s.by_culprit||[]);
   const rowLine=(l,r)=>`<div class="meta" style="display:flex;justify-content:space-between;gap:8px"><span>${l}</span><span style="white-space:nowrap">${r}</span></div>`;
   $("#summaryBody").innerHTML = `
     <div class="card" style="${tap}" onclick="openSumDetail('sold')"><div class="sechead">🟢 ขายออกเดือนนี้ ›</div>
@@ -1200,7 +904,7 @@ async function renderSummary(){
       <div class="meta">${s.onhand_cnt||0} ชิ้น (คิดมูลค่าเฉพาะที่ตั้งราคาแล้ว)</div>
     </div>
     <div class="card" style="${tap}" onclick="openSumDetail('claim')"><div class="sechead">🏭 เคลมโรงงานเดือนนี้ ›</div>
-      <div class="meta">📤 คืนสินค้า (ใบลดหนี้) ${s.claim_returned||s.claim_goods||0} ชิ้น</div>
+      <div class="meta">📦 ได้สินค้าคืน ${s.claim_goods||0} ชิ้น · 💰 ได้เงินคืน ${s.claim_refund||0} ชิ้น</div>
     </div>
     <div class="card" style="${tap}" onclick="openSumDetail('backlog')"><div class="sechead">⏳ ค้าง / ต้องจัดการ (ปัจจุบัน) ›</div>
       <div class="meta">รออนุมัติ ${s.backlog_review||0} · รอตั้งราคา ${s.backlog_price||0} · รอใส่บิล ${s.backlog_bill||0} · รอเคลม ${s.backlog_claim||0}</div>
@@ -1208,13 +912,8 @@ async function renderSummary(){
     <div class="card"><div class="sechead">📦 สรุปตามรายสินค้า (เดือนนี้)</div>
       ${prod.length ? prod.map(p=>rowLine(p.name, `${p.cnt} ชิ้น · ฿${B(p.val)}`)).join("") : '<div class="meta">— ไม่มีของเพิ่มเดือนนี้ —</div>'}
     </div>
-    <div class="card"><div class="sechead">🙋 สรุปตามคนแจ้ง (เดือนนี้)</div>
-      ${rep.length ? rep.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">— ไม่มีของเพิ่มเดือนนี้ —</div>'}
-    </div>
     <div class="card"><div class="sechead">🧑‍🔧 สรุปตามคนที่ทำชำรุด (เดือนนี้)</div>
-      <div class="meta" style="color:var(--sub);margin-bottom:4px">เฉพาะรายการที่ระบุ "คนที่ทำ" ไว้</div>
-      ${cul.length ? cul.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">— ยังไม่มีรายการที่ระบุคนทำ —</div>'}
-      ${s.external_cnt?rowLine('🚚 บุคคลภายนอก (ขนส่ง/ลูกค้า)', `${s.external_cnt} ชิ้น`):''}
+      ${cul.length ? cul.map(c=>rowLine(c.name, `${c.cnt} ชิ้น · ฿${B(c.val)}`)).join("") : '<div class="meta">—</div>'}
     </div>`;
 }
 $("#sumMonth").onchange = renderSummary;
@@ -1235,7 +934,7 @@ window.openSumDetail = async kind => {
   } else if(kind==='claim'){
     title="🏭 เคลมโรงงาน "+mv;
     rows=items.filter(it=>it.status==='claim_done'&&it.claim_at&&new Date(it.claim_at)>=d0&&new Date(it.claim_at)<d1)
-      .map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">📤 คืนสินค้า${(it.credit_note_no||it.claim_ref)?' · 🧾 '+(it.credit_note_no||it.claim_ref):''}${it.claim_date?' · '+it.claim_date:''}</div></div></div>`);
+      .map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">${it.claim_result==='refund'?'💰 ได้เงินคืน':'📦 ได้สินค้าคืน'}${it.claim_ref?' · '+it.claim_ref:''}${it.claim_date?' · '+it.claim_date:''}</div></div></div>`);
   } else if(kind==='backlog'){
     title="⏳ ค้าง / ต้องจัดการ";
     const lbl={pending_review:'รออนุมัติ',sold_pending:'รอใส่บิล',claim_pending:'รอเคลม'};
@@ -1248,8 +947,52 @@ window.openSumDetail = async kind => {
 };
 $("#sumCloseBtn").onclick = ()=> $("#sumModal").classList.remove("show");
 
-// ---- init ----
-(async()=>{ await loadEmployees(); await loadItems(); })();
+// ---- session gate + init ----
+const LOGIN_URL = SUPABASE_URL + "/functions/v1/login";
+async function startApp(){
+  $("#loginGate").style.display = "none";
+  await loadEmployees();
+  await loadItems();
+}
+async function mintSession(pin){
+  let res;
+  try{
+    res = await fetch(LOGIN_URL,{
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "apikey":SUPABASE_KEY, "Authorization":"Bearer "+SUPABASE_KEY },
+      body: JSON.stringify({ pin })
+    });
+  }catch(e){ return "network"; }
+  const j = await res.json().catch(()=>({}));
+  if(!res.ok || !j.access_token){ return j.error || ("error_"+res.status); }
+  const { error } = await db.auth.setSession({ access_token:j.access_token, refresh_token:j.refresh_token });
+  if(error) return "session_error";
+  return null; // success
+}
+async function gateSubmit(){
+  const btn=$("#gateBtn"), msg=$("#gateMsg");
+  const pin=$("#gatePin").value.trim();
+  if(!pin){ msg.textContent="ใส่รหัสก่อน"; return; }
+  btn.disabled=true; btn.textContent="กำลังเข้า..."; msg.textContent="";
+  const err = await mintSession(pin);
+  if(err){
+    btn.disabled=false; btn.textContent="เข้าใช้งาน";
+    msg.textContent = err==='invalid_pin' ? "รหัสไม่ถูกต้อง" : ("เข้าไม่ได้: "+err);
+    $("#gatePin").value=""; $("#gatePin").focus();
+    return;
+  }
+  await startApp();
+}
+$("#gateBtn").onclick = gateSubmit;
+$("#gatePin").addEventListener("keydown", e=>{ if(e.key==="Enter") gateSubmit(); });
+// auto-enter if a valid session already exists (returning user)
+(async()=>{
+  try{
+    const { data:{ session } } = await db.auth.getSession();
+    if(session){ await startApp(); return; }
+  }catch(e){}
+  setTimeout(()=>{ try{$("#gatePin").focus();}catch(e){} }, 200);
+})();
 </script>
 </body>
 </html>
