@@ -955,19 +955,31 @@ async function startApp(){
   await loadItems();
 }
 async function mintSession(pin){
-  let res;
-  try{
-    res = await fetch(LOGIN_URL,{
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "apikey":SUPABASE_KEY, "Authorization":"Bearer "+SUPABASE_KEY },
-      body: JSON.stringify({ pin })
-    });
-  }catch(e){ return "network"; }
-  const j = await res.json().catch(()=>({}));
-  if(!res.ok || !j.access_token){ return j.error || ("error_"+res.status); }
-  const { error } = await db.auth.setSession({ access_token:j.access_token, refresh_token:j.refresh_token });
-  if(error) return "session_error";
-  return null; // success
+  // หลายแอปใช้ผู้ใช้ employee ร่วมกัน (staff@kmmh.local) → magiclink token อาจชนกันชั่วคราว
+  // (verify_failed/otp_expired) จึงลองซ้ำอัตโนมัติ; รหัสผิด (401) ไม่ลองซ้ำ
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  for(let attempt=0; attempt<3; attempt++){
+    let res;
+    try{
+      res = await fetch(LOGIN_URL,{
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "apikey":SUPABASE_KEY, "Authorization":"Bearer "+SUPABASE_KEY },
+        body: JSON.stringify({ pin })
+      });
+    }catch(e){ if(attempt<2){ await sleep(400); continue; } return "network"; }
+    if(res.status===401){ return "invalid_pin"; } // รหัสผิด — ไม่ต้องลองซ้ำ
+    const j = await res.json().catch(()=>({}));
+    if(res.ok && j.access_token){
+      const { error } = await db.auth.setSession({ access_token:j.access_token, refresh_token:j.refresh_token });
+      if(!error) return null; // success
+      if(attempt<2){ await sleep(400); continue; }
+      return "session_error";
+    }
+    // transient (verify_failed/link_failed/5xx) → ลองซ้ำ
+    if(attempt<2){ await sleep(400); continue; }
+    return j.error || ("error_"+res.status);
+  }
+  return "error";
 }
 async function gateSubmit(){
   const btn=$("#gateBtn"), msg=$("#gateMsg");
