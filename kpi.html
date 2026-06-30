@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPI พนักงานคลัง — KMMH</title>
+<meta name="theme-color" content="#1f3864">
+<link rel="icon" type="image/png" href="icon-kmmh.png">
+<link rel="apple-touch-icon" href="icon-kmmh.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KPI คลัง KMMH">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { font-family: "Tahoma","Segoe UI",sans-serif; background:#eef1f6; color:#1f2937; padding:16px; }
+  .wrap { max-width: 900px; margin:0 auto; }
+  .topbar { background:#1f3864; color:#fff; padding:14px 18px; border-radius:12px 12px 0 0; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  .topbar h1 { font-size:18px; }
+  .badge { background:#2e9e5b; color:#06240f; font-size:11px; font-weight:bold; padding:4px 9px; border-radius:20px; }
+  .badge.off { background:#f59e0b; color:#3a2a00; }
+  .panel { background:#fff; padding:16px 18px; border-radius:0 0 12px 12px;}
+  .row-flex { display:flex; gap:12px; flex-wrap:wrap; }
+  .card { flex:1; min-width:150px; background:#f7f9fc; border:1px solid #e3e8f0; border-radius:10px; padding:12px 14px; }
+  .card .lbl { font-size:12px; color:#6b7280; }
+  .card .val { font-size:24px; font-weight:bold; color:#1f3864; margin-top:2px; }
+  .card .sub { font-size:12px; color:#9aa3b2; }
+  .money.locked { letter-spacing:3px; color:#b0b7c3; }
+  .barouter { height:16px; background:#e3e8f0; border-radius:10px; overflow:hidden; margin:10px 0 4px; }
+  .barinner { height:100%; background:linear-gradient(90deg,#2e9e5b,#37b96a); width:0%; transition:width .35s; }
+  .tabs { display:flex; gap:6px; margin-bottom:4px; }
+  .tab { flex:1; text-align:center; padding:9px 6px; border-radius:9px 9px 0 0; background:#dfe5ef; color:#46506180; cursor:pointer; font-size:13px; font-weight:bold; border:1px solid #d2d9e6; border-bottom:none;}
+  .tab small { display:block; font-weight:normal; font-size:10px; color:#7a869c; }
+  .tab.active { background:#2e5496; color:#fff;} .tab.active small{ color:#cdd9ef;}
+  .ribbon { background:#eef3fb; border:1px solid #d6e0f0; border-radius:0 8px 8px 8px; padding:8px 12px; font-size:12px; color:#33415c; margin-bottom:12px;}
+  .month { background:#2e5496; color:#fff; border:none; padding:6px 10px; border-radius:8px; font-size:13px; }
+  h2.sec { font-size:14px; color:#1f3864; margin:18px 0 8px; border-left:4px solid #2e5496; padding-left:8px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { background:#2e5496; color:#fff; padding:7px 8px; text-align:left; font-weight:600;}
+  td { padding:7px 8px; border-bottom:1px solid #eef1f6; }
+  tr.done { background:#eafaf0; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+  .w { font-weight:bold; }
+  .btn { background:#2e5496; color:#fff; border:none; padding:5px 11px; border-radius:7px; font-size:12px; cursor:pointer; }
+  .btn:hover { background:#244070; } .btn:disabled{ opacity:.5; cursor:default; }
+  .btn.ghost { background:#eef1f6; color:#2e5496; } .btn.green { background:#2e9e5b;} .btn.amber { background:#d97706;}
+  .check { color:#16a34a; font-weight:bold; font-size:15px; margin-right:3px; }
+  .tag { font-size:11px; color:#fff; padding:2px 7px; border-radius:12px; }
+  .tag.may { background:#c2410c;} .tag.ot { background:#7c3aed;}
+  .docno { font-size:11px; color:#475569; }
+  .thumb { width:28px; height:28px; object-fit:cover; border-radius:4px; vertical-align:middle; border:1px solid #cbd5e1;}
+  .uprow td { background:#fff8e6; }
+  .uprow input, .uprow select { font-family:inherit; font-size:12px; padding:5px 7px; border:1px solid #d9c98c; border-radius:6px; }
+  #bulkBar { background:#eef6ff; border:1px solid #cfe0f5; border-radius:9px; padding:10px 12px; margin-bottom:8px; }
+  #bulkBar input, #bulkBar select { font-family:inherit; font-size:12px; padding:5px 7px; border:1px solid #cfe0f5; border-radius:6px; }
+  .note { font-size:12px; color:#6b7280; margin-top:8px; line-height:1.6; }
+  .cfg { background:#fffaf0; border:1px dashed #e0b85c; border-radius:10px; padding:12px 14px; margin-top:6px;}
+  .cfg label { font-size:12px; display:block; margin-bottom:3px; color:#7a5a10; font-weight:bold;}
+  .cfg input { width:90px; padding:6px 8px; border:1px solid #e0b85c; border-radius:6px; font-family:inherit; color:#0000ff; font-weight:bold;}
+  .legend { font-size:11px; color:#6b7280; margin:6px 0; }
+  .statbox { flex:1; min-width:170px; background:#f3f6fb; border:1px solid #e3e8f0; border-radius:10px; padding:10px 14px;}
+  .statbox b { color:#1f3864; }
+  .pbar { height:9px; background:#e3e8f0; border-radius:6px; overflow:hidden; margin-top:5px;}
+  .pbar > div { height:100%; }
+  .overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:center; justify-content:center; padding:16px; z-index:50;}
+  .modal { background:#fff; border-radius:12px; max-width:440px; width:100%; padding:18px 20px;}
+  .modal h3 { color:#1f3864; margin-bottom:10px;} .modal table { font-size:13px;} .modal td { padding:5px 6px;}
+  /* gate */
+  #gate { position:fixed; inset:0; background:#1f3864; display:flex; align-items:center; justify-content:center; padding:18px; z-index:100;}
+  #gate .box { background:#fff; border-radius:16px; max-width:340px; width:100%; padding:26px 22px; text-align:center;}
+  #gate img { width:64px; height:64px; border-radius:14px; margin-bottom:10px;}
+  #gate h2 { color:#1f3864; font-size:18px; margin-bottom:4px;}
+  #gate p { color:#6b7280; font-size:13px; margin-bottom:16px;}
+  #gate input { width:100%; padding:12px; font-size:22px; letter-spacing:8px; text-align:center; border:1px solid #cbd5e1; border-radius:10px; }
+  #gate button { width:100%; margin-top:14px; padding:13px; border:none; border-radius:10px; background:#2e5496; color:#fff; font-size:16px; font-weight:bold; cursor:pointer;}
+  #gateErr { color:#c0392b; font-size:13px; margin-top:10px; min-height:18px;}
+  #app { display:none; }
+  .loadwrap{ text-align:center; color:#9aa3b2; font-size:13px; padding:14px;}
+</style>
+</head>
+<body>
+
+<!-- ===== หน้าล็อกรหัสก่อนเข้า ===== -->
+<div id="gate">
+  <div class="box">
+    <img src="icon-kmmh.png" alt="">
+    <h2>KPI พนักงานคลัง</h2>
+    <p>กิจมั่งมีโฮม — ใส่รหัสคลังเพื่อเข้าใช้งาน</p>
+    <input id="gatePin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••" maxlength="8">
+    <button id="gateBtn">เข้าใช้งาน</button>
+    <div id="gateErr"></div>
+  </div>
+</div>
+
+<div id="app">
+<div class="wrap">
+  <div class="topbar">
+    <h1>📊 KPI พนักงานคลัง — งานนับสต๊อก</h1>
+    <span class="badge" id="dbBadge">● เชื่อมฐานข้อมูลแล้ว</span>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <span style="font-size:13px;">รอบเดือน:</span>
+      <select id="monthSel" class="month" onchange="onMonthChange()">
+        <option value="1">ม.ค. 2569</option><option value="2">ก.พ. 2569</option><option value="3">มี.ค. 2569</option>
+        <option value="4">เม.ย. 2569</option><option value="5">พ.ค. 2569</option><option value="6">มิ.ย. 2569</option>
+        <option value="7" selected>ก.ค. 2569</option><option value="8">ส.ค. 2569</option><option value="9">ก.ย. 2569</option>
+        <option value="10">ต.ค. 2569</option><option value="11">พ.ย. 2569</option><option value="12">ธ.ค. 2569</option>
+      </select>
+      <button class="btn ghost" id="lockBtn" onclick="toggleLock()">🔒 ดูยอดเงิน (ใส่รหัส)</button>
+      <button class="btn amber" onclick="openPayroll()">📤 ปิดงวด & ส่งเงินเดือน</button>
+      <span id="closeHint" style="font-size:12px;color:#16725a;font-weight:bold;"></span>
+    </div>
+
+    <div id="closeBanner" style="margin:2px 0 8px;font-size:12px;"></div>
+    <div class="tabs">
+      <div class="tab" id="tabA" onclick="switchG('A')">กลุ่ม A<small>ทุกเดือน · คิดเงิน 500</small></div>
+      <div class="tab" id="tabB" onclick="switchG('B')">กลุ่ม B<small>ทุกไตรมาส · โบนัสไตรมาส</small></div>
+      <div class="tab" id="tabC" onclick="switchG('C')">กลุ่ม C<small>ปีละครั้ง · โบนัสปลายปี</small></div>
+    </div>
+    <div class="ribbon" id="ribbon"></div>
+
+    <div class="row-flex" id="cards"></div>
+    <div class="barouter"><div class="barinner" id="bar"></div></div>
+    <div class="legend" id="legend"></div>
+
+    <h2 class="sec">📈 สถิติผลงาน (ใครช่วยนับเท่าไหร่ · เฉพาะกลุ่มนี้)</h2>
+    <div class="row-flex">
+      <div class="statbox"><b>เมย์</b> — <span id="mC">0</span> หมวด · น้ำหนัก <b id="mW">0%</b><div class="pbar"><div id="mBar" style="width:0%;background:#c2410c"></div></div></div>
+      <div class="statbox"><b>โอที</b> — <span id="oC">0</span> หมวด · น้ำหนัก <b id="oW">0%</b><div class="pbar"><div id="oBar" style="width:0%;background:#7c3aed"></div></div></div>
+      <div class="statbox"><b>รวมทีม</b> — <b id="tW" style="font-size:18px;color:#16a34a">0%</b><div style="font-size:11px;color:#9aa3b2" id="tWsub"></div></div>
+    </div>
+
+    <h2 class="sec" id="tblHead">หมวดในกลุ่ม A</h2>
+    <div id="bulkBar" style="display:none;">
+      <div class="row-flex" style="align-items:center;">
+        <label style="font-size:12px;"><input type="checkbox" id="selAll" onclick="toggleAll(this.checked)"> เลือกทั้งหมด</label>
+        <span style="font-size:12px;">เลือกแล้ว <b id="selCount">0</b> หมวด</span>
+        <select id="bulkWho"><option>เมย์</option><option>โอที</option></select>
+        <input id="bulkDoc" placeholder="เลขเอกสาร (ใช้ร่วมกับหมวดที่เลือก)" style="flex:1; min-width:170px;">
+        <input type="file" id="bulkImg" accept="image/*" multiple>
+        <button class="btn green" id="bulkBtn" onclick="bulkCount()">นับหมวดที่เลือก + อัปรูป</button>
+      </div>
+      <div style="font-size:11px;color:#5b6b86;margin-top:5px;">* B/C นับหลายหมวดพร้อมกันได้ · รูป+เลขเอกสารชุดนี้จะผูกกับทุกหมวดที่เลือก (A ต้องกดทีละหมวด)<br>🛡️ ระบบตรวจ <b>รูปซ้ำ</b> และ <b>วันถ่าย</b> อัตโนมัติ — ใช้รูปจากการนับจริงครั้งนี้เท่านั้น</div>
+    </div>
+    <div id="tableWrap">
+      <table>
+        <thead><tr><th>รหัส</th><th>หมวด</th><th id="thW">น้ำหนัก</th><th>รายการ</th><th>สถานะ</th><th>หลักฐาน</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <h2 class="sec">⚙️ ตั้งค่าโบนัส B / C (เจ้าของกรอก/แก้เองได้)</h2>
+    <div class="cfg">
+      <div class="row-flex" style="align-items:flex-end;">
+        <div><label>โบนัส B /ไตรมาส (ต่อคน)</label><input type="number" id="bAmtB" value="400"><span id="maskB" class="money locked" style="display:none; padding:6px 8px; border:1px solid #e0b85c; border-radius:6px;">••••</span></div>
+        <div><label>โบนัส C /ปี (ต่อคน)</label><input type="number" id="bAmtC" value="800"><span id="maskC" class="money locked" style="display:none; padding:6px 8px; border:1px solid #e0b85c; border-radius:6px;">••••</span></div>
+        <div><label>ส่วนปิดครบ (%)</label><input type="number" id="compPct" value="50"></div>
+        <div><label>เดือนปิด C</label><select id="cCloseSel" style="padding:6px 8px;border:1px solid #e0b85c;border-radius:6px;font-family:inherit;font-weight:bold;color:#0000ff;"><option value="9" selected>ก.ย. (จบหน้าต่างนับ)</option><option value="12">ธ.ค. (ปลายปี)</option></select></div>
+        <button class="btn green" onclick="render()">บันทึกค่า</button>
+      </div>
+      <div class="note">
+        <b>วิธีจ่าย B/C:</b> เคาะตอนปิดรอบ (B = สิ้นไตรมาส · C = สิ้นปี) = <b>ส่วนสัดส่วน</b> (จ่ายตาม %หมวดที่นับ) + <b>ส่วนปิดครบ</b> (จ่ายเมื่อครบ 100%) · ตั้งสัดส่วน:ปิดครบ = <span id="splitShow">50:50</span>
+        <br>ประมาณการตอนนี้: B นับ <b id="bCov">0%</b> → โบนัส <b id="bBonus">••••</b> · C นับ <b id="cCov">0%</b> → โบนัส <b id="cBonus">••••</b>
+        <br><span style="color:#9aa3b2;">ทยอยส่งได้ จ่ายตามที่นับได้จริงตอนปิดรอบ · ทำครึ่งทางแล้วทิ้ง = ได้แค่ส่วนสัดส่วน ไม่ได้ส่วนปิดครบ</span>
+      </div>
+    </div>
+
+    <div class="note" id="footnote"></div>
+
+    <h2 class="sec">📜 บันทึกการแก้ไข/ยกเลิก (Audit Log)</h2>
+    <div id="auditBox" style="font-size:12px; max-height:170px; overflow:auto; background:#f7f9fc; border:1px solid #e3e8f0; border-radius:8px; padding:8px 12px;"></div>
+  </div>
+</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal"><h3>📤 ปิดงวด & ส่งเข้าเงินเดือน</h3><div id="payrollBody"></div>
+    <div style="text-align:right; margin-top:14px;">
+      <button class="btn ghost" onclick="closeModal()">ปิด</button>
+      <button class="btn green" id="confirmPayBtn" onclick="confirmPayroll()">ยืนยันปิดงวด + ส่งเงิน</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pinOverlay">
+  <div class="modal" style="max-width:340px;">
+    <h3>🔒 ใส่รหัส</h3>
+    <div id="pinMsg" style="font-size:13px;color:#33415c;margin-bottom:10px;white-space:pre-line;">ใส่รหัส:</div>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off"
+      style="width:100%;padding:10px 12px;font-size:20px;letter-spacing:6px;text-align:center;border:1px solid #cbd5e1;border-radius:8px;">
+    <div style="text-align:right;margin-top:14px;">
+      <button class="btn ghost" id="pinCancel">ยกเลิก</button>
+      <button class="btn green" id="pinOk">ตกลง</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== Supabase ===================== */
+const SUPABASE_URL = "https://hfystbdqjhftrlelmkjm.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Cz_p8O1rAs2ohPDtnKS_BA_LYUGiw8r";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const BUCKET = "stock-photos";
+const YEAR_CE = 2026, YEAR_BE = 2569;
+
+/* ===================== หมวด (เช็กลิสต์ระดับหมวด) =====================
+   A ถ่วงน้ำหนักด้วยมูลค่าขายจริงปี 2568 · B/C น้ำหนักเท่ากันทุกหมวด
+   (ตัวเลข "รายการ" เป็นข้อมูลอ้างอิงปี 68 — ไม่กระทบการคิดเงิน) */
+const A_RAW = [
+  ["ไม้อัด-บอร์ด",16994060,195],["ประตู",4546192,348],["ไม้ฝา-ฝ้า-ยิปซั่ม",4402880,144],
+  ["เหล็ก-ลวด-ตะแกรง",2924951,86],["ไม้แปรรูป-โครง",2718056,104],["สี-ทินเนอร์",2427070,568],
+  ["วงกบ",2392470,97],["ลามิเนต-ขอบปิด",2209228,133],["ประตู-หน้าต่างอลู",2008610,90],["กาว-ยาแนว-เคมี",1824316,87]
+];
+const B_RAW = [["อุปกรณ์ประตู-เฟอร์นิเจอร์",432],["ปูน-อิฐ-วัสดุก่อสร้าง",35],["สกรู-ตะปู-แม็ก",230]];
+const C_RAW = [["สุขภัณฑ์-ซิงค์",58],["อื่นๆ-ยังไม่จัดหมวด",184],["เครื่องมือช่าง",346],["ประปา-ก๊อก-ข้อต่อ",318],["หน้าต่าง",23],["ไม้บัว-คิ้ว",57],["ไฟฟ้า-เครื่องใช้",149],["อุปกรณ์ทาสี",82],["เกล็ด-ช่องลม",50],["รางน้ำฝน",13],["ไม้แปรรูป-ประสาน",1]];
+
+function buildQty(raw){ const T=raw.reduce((s,r)=>s+r[1],0); return raw.map(r=>({name:r[0],items:r[2],w:r[1]/T*100,counted:false,by:null,doc:"",imgs:[],hashes:[],rowId:null})); }
+function buildFlat(raw){ const w=100/raw.length; return raw.map(r=>({name:r[0],items:r[1],w:w,counted:false,by:null,doc:"",imgs:[],hashes:[],rowId:null})); }
+
+const GROUPS = {
+  A:{ mode:'qty', freq:'นับทุกเดือน → คิดเงิน 500 × %KPI', win:'ในรอบ (นับได้ทุกเดือน)', cats:buildQty(A_RAW),
+      legend:'🔴 ≥5% · 🟡 1–5% · 🔵 <1% — ถ่วงตามมูลค่าขายจริงปี 2568 · นับหมวดบนก่อน %พุ่งเร็ว', wcol:'น้ำหนัก(มูลค่า)' },
+  B:{ mode:'flat', freq:'นับทุกไตรมาส → ใช้ปลดโบนัสไตรมาส (ทุกหมวดน้ำหนักเท่ากัน)', win:'ในรอบ (ปิดไตรมาส)', cats:buildFlat(B_RAW),
+      legend:'ทุกหมวดน้ำหนักเท่ากัน — เป้าคือวนนับให้ครบ ไม่เน้นถ่วงเหมือน A', wcol:'น้ำหนัก(เท่ากัน)' },
+  C:{ mode:'flat', freq:'นับปีละครั้ง ช่วงเงียบ มิ.ย.–ก.ย. → ใช้ปลดโบนัสปลายปี', win:'ในรอบ (หน้าต่างกลางปี)', cats:buildFlat(C_RAW),
+      legend:'ทุกหมวดเท่ากัน · ของมูลค่าต่ำ เน้นนับเฉพาะตัวที่ขยับ ข้ามของนิ่งได้', wcol:'น้ำหนัก(เท่ากัน)' }
+};
+const MONTHS=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+
+/* ===================== state ===================== */
+let g='A', openIdx=-1, locked=true, selected=new Set();
+let curPeriod="", periodId=null, closed=false, overrideOn=false;
+let empMap={}, busy=false;
+const usedHashes = new Map();
+const $=id=>document.getElementById(id);
+function monthVal(){ return +$("monthSel").value; }
+function periodStr(grp, m){ if(grp==='A') return YEAR_CE+'-'+String(m).padStart(2,'0'); if(grp==='B') return YEAR_CE+'-Q'+Math.ceil(m/3); return ''+YEAR_CE; }
+function cur(){ return GROUPS[g]; }
+function pct(grp){ return grp.cats.filter(c=>c.counted).reduce((s,c)=>s+c.w,0); }
+function color(w){ return w>=5?"#dc2626":(w>=1?"#f59e0b":"#3b82f6"); }
+function money(v){ return locked ? '<span class="money locked">••••</span>' : v.toLocaleString(); }
+function bonusPay(amount, cov, compPct){ const pr=(100-compPct)/100, cm=compPct/100; const proRata=pr*amount*(cov/100); const completion=(cov>=99.9)?cm*amount:0; return Math.round(proRata+completion); }
+function closesThisMonth(){ const m=monthVal(), c=+$("cCloseSel").value; const parts=['A']; if([3,6,9,12].includes(m)) parts.push('B'); if(m===c) parts.push('C'); return {m, parts}; }
+
+/* ===================== gate (ล็อกรหัสก่อนเข้า) ===================== */
+async function tryGate(){
+  const pin=$("gatePin").value.trim();
+  $("gateErr").textContent="";
+  if(!pin){ $("gateErr").textContent="กรุณาใส่รหัส"; return; }
+  $("gateBtn").disabled=true; $("gateBtn").textContent="กำลังตรวจ...";
+  try{
+    const {data,error}=await db.rpc("kpi_verify_pin",{p_kind:'gate',p_pin:pin});
+    if(error) throw error;
+    if(data && data.ok){ sessionStorage.setItem("kpi_gate","1"); enterApp(); }
+    else { $("gateErr").textContent=(data&&data.error)||"รหัสไม่ถูกต้อง"; }
+  }catch(e){ $("gateErr").textContent="เชื่อมต่อไม่ได้: "+(e.message||e); }
+  $("gateBtn").disabled=false; $("gateBtn").textContent="เข้าใช้งาน";
+}
+function enterApp(){ $("gate").style.display="none"; $("app").style.display="block"; init(); }
+
+/* ===================== load / persist ===================== */
+async function loadEmployees(){
+  const {data}=await db.from("employees").select("id,nickname").eq("is_active",true);
+  empMap={}; (data||[]).forEach(e=>{ if(e.nickname) empMap[e.nickname]=e; });
+}
+async function loadPeriod(){
+  curPeriod=periodStr(g, monthVal());
+  const grp=g;
+  // reset cats
+  GROUPS[grp].cats.forEach(c=>{ c.counted=false;c.by=null;c.doc="";c.imgs=[];c.hashes=[];c.rowId=null; });
+  usedHashes.clear();
+  const {data:pd}=await db.from("kpi_periods").select("*").eq("grp",grp).eq("period",curPeriod).maybeSingle();
+  periodId = pd? pd.id : null;
+  closed   = pd? (pd.status==='closed') : false;
+  overrideOn=false;
+  if(periodId){
+    const {data:cs}=await db.from("kpi_counts").select("*").eq("period_id",periodId);
+    (cs||[]).forEach(r=>{
+      const c=GROUPS[grp].cats.find(x=>x.name===r.cat_name);
+      if(c){ c.counted=true; c.by=r.counted_by_name; c.doc=r.doc_no||""; c.imgs=r.photo_urls||[]; c.hashes=r.img_hashes||[]; c.rowId=r.id;
+        (r.img_hashes||[]).forEach(h=>usedHashes.set(h,{by:r.counted_by_name,doc:r.doc_no,cat:r.cat_name})); }
+    });
+  }
+}
+async function ensurePeriod(){
+  if(periodId) return periodId;
+  const {data,error}=await db.from("kpi_periods").insert({grp:g,period:curPeriod,status:'open'}).select().single();
+  if(error){
+    if(error.code==='23505'){ const {data:p2}=await db.from("kpi_periods").select("*").eq("grp",g).eq("period",curPeriod).single(); periodId=p2.id; return periodId; }
+    throw error;
+  }
+  periodId=data.id; return periodId;
+}
+async function uploadPhotos(files, code){
+  const urls=[];
+  for(const f of files){
+    const path=`kpi/${curPeriod}/${code}_${Date.now()}_${Math.random().toString(36).slice(2,7)}.jpg`;
+    const up=await db.storage.from(BUCKET).upload(path,f,{upsert:false,contentType:f.type||'image/jpeg'});
+    if(up.error) throw up.error;
+    urls.push(db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
+  }
+  return urls;
+}
+async function logAudit(action, detail){
+  try{ await db.from("kpi_audit").insert({period_id:periodId, grp:g, action, actor_name:'พนักงานคลัง', detail:{text:detail||''}}); }catch(e){}
+  await loadAudit();
+}
+async function loadAudit(){
+  const box=$("auditBox");
+  if(!periodId){ box.innerHTML='<span style="color:#9aa3b2">ยังไม่มีรายการในงวดนี้</span>'; return; }
+  const {data}=await db.from("kpi_audit").select("*").eq("period_id",periodId).order("at",{ascending:false}).limit(40);
+  box.innerHTML = (data&&data.length)
+    ? data.map(e=>`<div style="padding:3px 0;border-bottom:1px dashed #e3e8f0;"><b>${new Date(e.at).toLocaleString('th-TH')}</b> · ${e.action}${(e.detail&&e.detail.text)?' — '+e.detail.text:''}</div>`).join('')
+    : '<span style="color:#9aa3b2">ยังไม่มีรายการ</span>';
+}
+
+/* ===================== กันรูปซ้ำ + เช็ควันถ่าย (ในเครื่อง) ===================== */
+async function hashBuf(buf){
+  try{ if(crypto.subtle){ const h=await crypto.subtle.digest('SHA-256',buf); return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join(''); } }catch(e){}
+  const v=new Uint8Array(buf); let h=0x811c9dc5; for(let i=0;i<v.length;i+=251){ h^=v[i]; h=Math.imul(h,0x01000193); } return 'fb'+(h>>>0).toString(16)+'_'+v.length;
+}
+function exifDateFromBuf(buf){
+  try{
+    const dv=new DataView(buf); if(dv.getUint16(0)!==0xFFD8) return null;
+    let off=2; const len=dv.byteLength;
+    while(off+4<len){
+      if(dv.getUint8(off)!==0xFF) break;
+      const marker=dv.getUint8(off+1), size=dv.getUint16(off+2);
+      if(marker===0xE1 && dv.getUint32(off+4)===0x45786966){
+        const tiff=off+10, little=dv.getUint16(tiff)===0x4949;
+        const g16=o=>dv.getUint16(o,little), g32=o=>dv.getUint32(o,little);
+        const ifd0=tiff+g32(tiff+4);
+        const findTag=(ifd,tag)=>{ const n=g16(ifd); for(let i=0;i<n;i++){ const e=ifd+2+i*12; if(g16(e)===tag) return e; } return -1; };
+        const readStr=e=>{ const cnt=g32(e+4), vo=tiff+g32(e+8); let s=''; for(let k=0;k<cnt-1;k++) s+=String.fromCharCode(dv.getUint8(vo+k)); return s; };
+        let ds=null; const ep=findTag(ifd0,0x8769);
+        if(ep>=0){ const eifd=tiff+g32(ep+8); for(const t of [0x9003,0x9004]){ const e=findTag(eifd,t); if(e>=0){ ds=readStr(e); break; } } }
+        if(!ds){ const e=findTag(ifd0,0x0132); if(e>=0) ds=readStr(e); }
+        if(ds){ const m=ds.match(/^(\d{4}):(\d{2}):(\d{2})/); if(m) return {y:+m[1],mo:+m[2],d:+m[3]}; }
+        return null;
+      }
+      off += 2+size;
+    }
+    return null;
+  }catch(e){ return null; }
+}
+async function checkImages(files, selMonth){
+  const dupes=[], noDate=[], wrongDate=[], hashes=[];
+  for(const f of files){
+    let buf; try{ buf=await f.arrayBuffer(); }catch(e){ buf=null; }
+    const hash = buf? await hashBuf(buf) : (f.name+'_'+f.size+'_'+f.lastModified);
+    hashes.push(hash);
+    if(usedHashes.has(hash)) dupes.push(f.name);
+    const d = buf? exifDateFromBuf(buf) : null;
+    if(!d) noDate.push(f.name);
+    else if(d.mo!==selMonth) wrongDate.push(f.name+' (ถ่าย '+d.d+'/'+d.mo+'/'+(d.y+543)+')');
+  }
+  if(dupes.length){ alert('❌ พบรูปซ้ำกับที่เคยส่งในงวดนี้:\n• '+dupes.join('\n• ')+'\n\nต้องใช้รูปจากการนับจริงครั้งนี้ ไม่ใช้รูปเดิมซ้ำ'); return null; }
+  let w='';
+  if(wrongDate.length) w+='⚠️ วันถ่ายไม่ตรงเดือนที่เลือกนับ:\n• '+wrongDate.join('\n• ')+'\n\n';
+  if(noDate.length)   w+='⚠️ อ่านวันถ่ายไม่ได้ (อาจเป็นภาพแคปหน้าจอ/ภาพที่ส่งต่อกันมา):\n• '+noDate.join('\n• ')+'\n\n';
+  if(w && !confirm(w+'ยังต้องการบันทึกต่อหรือไม่?')) return null;
+  return hashes;
+}
+
+/* ===================== PIN modal ===================== */
+function askPin(msg){
+  return new Promise(resolve=>{
+    const ov=$("pinOverlay"), inp=$("pinInput"), okBtn=$("pinOk"), caBtn=$("pinCancel");
+    $("pinMsg").textContent=msg||'ใส่รหัส:'; inp.value='';
+    ov.style.display='flex'; setTimeout(()=>inp.focus(),50);
+    function done(v){ ov.style.display='none'; okBtn.removeEventListener('click',ok); caBtn.removeEventListener('click',ca); inp.removeEventListener('keydown',key); resolve(v); }
+    function ok(){ done(inp.value.trim()); } function ca(){ done(null); }
+    function key(e){ if(e.key==='Enter'){e.preventDefault();ok();} else if(e.key==='Escape'){e.preventDefault();ca();} }
+    okBtn.addEventListener('click',ok); caBtn.addEventListener('click',ca); inp.addEventListener('keydown',key);
+  });
+}
+async function verifyPin(kind, msg){
+  const p=await askPin(msg); if(p===null) return null;
+  const {data,error}=await db.rpc("kpi_verify_pin",{p_kind:kind,p_pin:p});
+  if(error){ alert("เชื่อมต่อไม่ได้: "+error.message); return null; }
+  if(!data||!data.ok){ alert((data&&data.error)||"รหัสไม่ถูกต้อง"); return null; }
+  return p;
+}
+async function toggleLock(){
+  if(locked){ const p=await verifyPin('money',"ใส่รหัสเพื่อดูยอดเงิน:"); if(p) locked=false; }
+  else locked=true;
+  $("lockBtn").textContent = locked? "🔒 ดูยอดเงิน (ใส่รหัส)" : "🔓 ซ่อนยอดเงิน";
+  render();
+}
+async function requestOverride(){
+  const p=await verifyPin('owner',"งวดนี้ปิดแล้ว 🔒\nกรณีนับผิดและต้องแก้ — ใส่รหัสเจ้าของ:");
+  if(!p) return false;
+  const r=(prompt("ระบุเหตุผลการแก้ไข (เช่น นับผิด B05 ขอแก้):")||"").trim();
+  if(!r){ alert("ต้องระบุเหตุผลก่อนแก้"); return false; }
+  overrideOn=true; await logAudit('🔓 ปลดล็อกแก้งวดที่ปิด', r); render(); return true;
+}
+
+/* ===================== navigation ===================== */
+async function onMonthChange(){ openIdx=-1; selected=new Set(); await loadPeriod(); await loadAudit(); render(); }
+async function switchG(k){ g=k; openIdx=-1; selected=new Set(); await loadPeriod(); await loadAudit(); render(); }
+function toggleSel(i,ch){ if(ch) selected.add(i); else selected.delete(i); $("selCount").textContent=selected.size; }
+function toggleAll(ch){ const C=cur(); selected=new Set(); if(ch) C.cats.forEach((c,i)=>{ if(!c.counted) selected.add(i); }); render(); }
+
+/* ===================== counting actions ===================== */
+async function toggle(i){ if(closed && !overrideOn){ if(!(await requestOverride())) return; } openIdx=(openIdx===i?-1:i); render(); }
+
+async function confirmUp(i){
+  if(busy) return;
+  const who=$("who").value, doc=$("doc").value.trim(), fs=$("img").files;
+  if(!doc){ alert("กรุณากรอกเลขเอกสาร"); return; }
+  if(!fs.length){ alert("กรุณาแนบรูป (แนบได้หลายใบ)"); return; }
+  const hashes=await checkImages(fs, monthVal()); if(!hashes) return;
+  busy=true; const btn=document.getElementById("upBtn"); if(btn){ btn.disabled=true; btn.textContent="กำลังบันทึก..."; }
+  try{
+    await ensurePeriod();
+    const c=cur().cats[i], code=g+String(i+1).padStart(2,'0');
+    const urls=await uploadPhotos(fs, code);
+    const emp=empMap[who];
+    const {data,error}=await db.from("kpi_counts").insert({
+      period_id:periodId, grp:g, cat_name:c.name, cat_index:i, weight:c.w,
+      counted_by: emp? emp.id : null, counted_by_name:who, doc_no:doc, photo_urls:urls, img_hashes:hashes
+    }).select().single();
+    if(error) throw error;
+    c.counted=true; c.by=who; c.doc=doc; c.imgs=urls; c.hashes=hashes; c.rowId=data.id;
+    hashes.forEach(h=>usedHashes.set(h,{by:who,doc,cat:c.name}));
+    await logAudit('นับหมวด', `${code} ${c.name} โดย ${who}`+(overrideOn?' · หลังปิดงวด':''));
+    openIdx=-1; render();
+  }catch(err){ alert("บันทึกไม่สำเร็จ: "+(err.message||err)); }
+  busy=false;
+}
+
+async function bulkCount(){
+  if(busy) return;
+  if(closed && !overrideOn){ if(!(await requestOverride())) return; }
+  const who=$("bulkWho").value, doc=$("bulkDoc").value.trim(), fs=$("bulkImg").files;
+  if(selected.size===0){ alert("เลือกหมวดที่จะนับก่อน (ติ๊กช่อง 'เลือก')"); return; }
+  if(!doc){ alert("กรอกเลขเอกสาร"); return; }
+  if(!fs.length){ alert("แนบรูป (แนบได้หลายใบ)"); return; }
+  const hashes=await checkImages(fs, monthVal()); if(!hashes) return;
+  busy=true; const btn=$("bulkBtn"); btn.disabled=true; btn.textContent="กำลังบันทึก...";
+  try{
+    await ensurePeriod();
+    const C=cur(); const idxs=[...selected].filter(i=>!C.cats[i].counted);
+    const urls=await uploadPhotos(fs, g+'bulk');
+    const rows=idxs.map(i=>({ period_id:periodId, grp:g, cat_name:C.cats[i].name, cat_index:i, weight:C.cats[i].w,
+      counted_by: empMap[who]? empMap[who].id : null, counted_by_name:who, doc_no:doc, photo_urls:urls, img_hashes:hashes }));
+    const {data,error}=await db.from("kpi_counts").insert(rows).select();
+    if(error) throw error;
+    (data||[]).forEach(r=>{ const c=C.cats.find(x=>x.name===r.cat_name); if(c){ c.counted=true; c.by=who; c.doc=doc; c.imgs=r.photo_urls; c.hashes=r.img_hashes; c.rowId=r.id; } });
+    hashes.forEach(h=>usedHashes.set(h,{by:who,doc,cat:'กลุ่ม '+g}));
+    await logAudit('นับหลายหมวด', `กลุ่ม ${g} จำนวน ${idxs.length} หมวด โดย ${who}`+(overrideOn?' · หลังปิดงวด':''));
+    selected=new Set(); $("bulkDoc").value=""; $("bulkImg").value=""; render();
+  }catch(err){ alert("บันทึกไม่สำเร็จ: "+(err.message||err)); }
+  busy=false; btn.disabled=false; btn.textContent="นับหมวดที่เลือก + อัปรูป";
+}
+
+async function undo(i){
+  if(busy) return;
+  const code=g+String(i+1).padStart(2,'0'), c=cur().cats[i];
+  if(closed && !overrideOn){ if(!(await requestOverride())) return; }
+  if(!confirm(`ยืนยันยกเลิกการนับ ${code} (${c.name})?\nหลักฐานจะถูกถอด และ %/เงินจะลดลง`)) return;
+  busy=true;
+  try{
+    if(c.rowId){ const {error}=await db.from("kpi_counts").delete().eq("id",c.rowId); if(error) throw error; }
+    (c.hashes||[]).forEach(h=>usedHashes.delete(h));
+    await logAudit('ยกเลิกการนับ', `${code} ${c.name} (เดิมโดย ${c.by})`+(overrideOn?' · หลังปิดงวด':''));
+    c.counted=false; c.imgs=[]; c.doc=""; c.by=null; c.hashes=[]; c.rowId=null; render();
+  }catch(err){ alert("ยกเลิกไม่สำเร็จ: "+(err.message||err)); }
+  busy=false;
+}
+
+/* ===================== close period → payroll ===================== */
+async function fetchPct(grp, period){
+  const {data:pd}=await db.from("kpi_periods").select("id").eq("grp",grp).eq("period",period).maybeSingle();
+  if(!pd) return 0;
+  const {data:cs}=await db.from("kpi_counts").select("cat_name").eq("period_id",pd.id);
+  const names=new Set((cs||[]).map(r=>r.cat_name));
+  return GROUPS[grp].cats.filter(c=>names.has(c.name)).reduce((s,c)=>s+c.w,0);
+}
+function openPayroll(){
+  if(locked){ alert("กรุณาปลดล็อกยอดเงินก่อน (รหัส) แล้วค่อยปิดงวด"); return; }
+  const ci=closesThisMonth(), comp=+$("compPct").value, amtB=+$("bAmtB").value, amtC=+$("bAmtC").value;
+  const aP=pct(GROUPS.A), bP=pct(GROUPS.B), cP=pct(GROUPS.C);
+  const pay=Math.round(500*aP/100);
+  const bBonus = ci.parts.includes('B') ? bonusPay(amtB,bP,comp) : 0;
+  const cBonus = ci.parts.includes('C') ? bonusPay(amtC,cP,comp) : 0;
+  const net = pay+bBonus+cBonus;
+  let rows = `<tr><td>รอบเดือน</td><td><b>${MONTHS[ci.m-1]} ${YEAR_BE}</b></td></tr>
+      <tr><td>ปิดงวดนี้</td><td><b>${ci.parts.join(' + ')}</b>${ci.parts.includes('B')?' (Q'+Math.ceil(ci.m/3)+')':''}</td></tr>
+      <tr><td>เงินเดือน A (ต่อคน)</td><td><b>${pay.toLocaleString()}</b> บ. <span style="color:#9aa3b2">(KPI ${aP.toFixed(1)}%)</span></td></tr>`;
+  if(ci.parts.includes('B')) rows+=`<tr><td>โบนัส B ไตรมาส</td><td><b>${bBonus.toLocaleString()}</b> บ. <span style="color:#9aa3b2">(นับ B ${bP.toFixed(1)}%)</span></td></tr>`;
+  if(ci.parts.includes('C')) rows+=`<tr><td>โบนัส C ปลายปี</td><td><b>${cBonus.toLocaleString()}</b> บ. <span style="color:#9aa3b2">(นับ C ${cP.toFixed(1)}%)</span></td></tr>`;
+  rows+=`<tr style="border-top:2px solid #1f3864"><td><b>เมย์ รับสุทธิ</b></td><td><b>${net.toLocaleString()}</b> บ.</td></tr>
+      <tr><td><b>โอที รับสุทธิ</b></td><td><b>${net.toLocaleString()}</b> บ.</td></tr>`;
+  const haveEmp = empMap['เมย์'] && empMap['โอที'];
+  $("payrollBody").innerHTML=`
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">ยอดที่จะส่งเข้าระบบเงินเดือน (รายได้พิเศษ "KPI คลังสินค้า"):</div>
+    <table>${rows}</table>
+    ${haveEmp?'':'<div style="color:#c0392b;font-size:12px;margin-top:8px;">⚠️ ไม่พบพนักงาน เมย์/โอที ในฐานข้อมูล — ปิดงวดได้แต่จะไม่ส่งเงิน</div>'}
+    <div style="font-size:11px;color:#9aa3b2;margin-top:8px;">* ส่งแยกรายการตามกลุ่มที่ปิด · เจ้าของเปิดดู/แก้ได้ในแอปเงินเดือน · ปิดซ้ำ = อัปเดตยอดเดิม ไม่ซ้ำ</div>`;
+  $("overlay").style.display="flex";
+}
+function closeModal(){ $("overlay").style.display="none"; }
+async function confirmPayroll(){
+  if(busy) return;
+  const ci=closesThisMonth();
+  const ownerPin=await verifyPin('owner',"ใส่รหัสเจ้าของเพื่อปิดงวด + ส่งเงินเข้าระบบเงินเดือน:");
+  if(!ownerPin) return;
+  busy=true; const btn=$("confirmPayBtn"); btn.disabled=true; btn.textContent="กำลังส่ง...";
+  try{
+    const comp=+$("compPct").value, amtB=+$("bAmtB").value, amtC=+$("bAmtC").value;
+    const recip=[]; ['เมย์','โอที'].forEach(n=>{ if(empMap[n]) recip.push(empMap[n].id); });
+    let summary=[];
+    for(const gg of ci.parts){
+      const period=periodStr(gg, ci.m);
+      const cov=await fetchPct(gg, period);
+      let pay; if(gg==='A') pay=Math.round(500*cov/100); else if(gg==='B') pay=bonusPay(amtB,cov,comp); else pay=bonusPay(amtC,cov,comp);
+      const recipients=recip.map(id=>({employee_id:id, amount:pay, note:`KPI ${gg} ${cov.toFixed(1)}%`}));
+      const {data,error}=await db.rpc("kpi_close_period",{
+        p_grp:gg, p_period:period, p_year:YEAR_CE, p_month:ci.m,
+        p_recipients:recipients, p_detail:{cov:cov, pay:pay, comp:comp}, p_pin:ownerPin });
+      if(error || !data || !data.ok){ throw new Error('กลุ่ม '+gg+': '+((data&&data.error)||(error&&error.message)||'ไม่สำเร็จ')); }
+      summary.push(`${gg}: ${pay.toLocaleString()} บ./คน (${data.entries} รายการ)`);
+    }
+    closeModal();
+    await loadPeriod(); await loadAudit(); render();
+    alert("✅ ปิดงวด "+MONTHS[ci.m-1]+" "+YEAR_BE+" และส่งเงินเข้าระบบเงินเดือนแล้ว\n\n"+summary.join('\n'));
+  }catch(err){ alert("ปิดงวดไม่สำเร็จ: "+(err.message||err)); }
+  busy=false; btn.disabled=false; btn.textContent="ยืนยันปิดงวด + ส่งเงิน";
+}
+
+/* ===================== render ===================== */
+function render(){
+  ['A','B','C'].forEach(k=>$('tab'+k).className = 'tab'+(k===g?' active':''));
+  const C=cur(), p=pct(C), done=C.cats.filter(c=>c.counted).length, N=C.cats.length;
+  $("ribbon").innerHTML = `<b>กลุ่ม ${g}:</b> ${C.freq} &nbsp;·&nbsp; รอบ: <b style="color:#16725a">${curPeriod}</b>`;
+  $("legend").textContent = C.legend;
+  $("tblHead").textContent = `หมวดในกลุ่ม ${g} (${N} หมวด)`;
+  $("thW").textContent = C.wcol;
+  $("bar").style.width = p.toFixed(1)+"%";
+
+  let cardsHtml = `<div class="card"><div class="lbl">${g==='A'?'% KPI ทีม (คิดเงิน)':'% ครอบคลุมกลุ่ม '+g}</div><div class="val">${p.toFixed(1)}%</div><div class="sub">นับแล้ว ${done}/${N} หมวด</div></div>`;
+  if(g==='A'){
+    const pay=Math.round(500*p/100);
+    cardsHtml += `<div class="card"><div class="lbl">💰 เมย์ ได้</div><div class="val">${money(pay)}</div><div class="sub">= 500 × %KPI</div></div>`;
+    cardsHtml += `<div class="card"><div class="lbl">💰 โอที ได้</div><div class="val">${money(pay)}</div><div class="sub">ช่วยกัน ได้เท่ากัน</div></div>`;
+  } else if(g==='B'){
+    const amtB=+$("bAmtB").value, comp=+$("compPct").value;
+    cardsHtml += `<div class="card"><div class="lbl">โบนัส B (เคาะตอนปิดไตรมาส)</div><div class="val">${money(bonusPay(amtB,p,comp))}</div><div class="sub">นับ ${p.toFixed(1)}% · ${100-comp}%สัดส่วน + ${comp}%ปิดครบ</div></div>`;
+  } else {
+    const amtC=+$("bAmtC").value, comp=+$("compPct").value;
+    cardsHtml += `<div class="card"><div class="lbl">โบนัส C (เคาะตอนปิดปี)</div><div class="val">${money(bonusPay(amtC,p,comp))}</div><div class="sub">นับ ${p.toFixed(1)}% · เน้นตัวที่ขยับ</div></div>`;
+  }
+  $("cards").innerHTML = cardsHtml;
+
+  const tb=$("tbody"); tb.innerHTML="";
+  C.cats.forEach((c,i)=>{
+    const tr=document.createElement("tr"); if(c.counted) tr.className="done";
+    const wcell = C.mode==='qty' ? `<span class="dot" style="background:${color(c.w)}"></span>${c.w.toFixed(1)}%` : `${c.w.toFixed(1)}%`;
+    const code = g + String(i+1).padStart(2,'0');
+    let actionCell;
+    if(c.counted) actionCell=`<button class="btn ghost" onclick="undo(${i})">ยกเลิก</button>`;
+    else if(g==='A') actionCell=`<button class="btn" onclick="toggle(${i})">นับ + อัปรูป</button>`;
+    else actionCell=`<label style="font-size:12px;white-space:nowrap;"><input type="checkbox" ${selected.has(i)?'checked':''} onclick="toggleSel(${i},this.checked)"> เลือก</label>`;
+    tr.innerHTML=`
+      <td><b>${code}</b></td>
+      <td>${c.name}</td>
+      <td class="w">${wcell}</td>
+      <td><span style="color:#9aa3b2" title="อ้างอิงปี 68">${c.items}</span></td>
+      <td>${c.counted?`<span class="check">✓</span><span class="tag ${c.by==='เมย์'?'may':'ot'}">${c.by||''}</span>`:'<span style="color:#9aa3b2">ยังไม่นับ</span>'}</td>
+      <td>${c.counted?`${(c.imgs||[]).map(u=>`<img class="thumb" src="${u}">`).join(' ')}${(c.imgs||[]).length>1?`<span class="docno"> (${c.imgs.length} ใบ)</span>`:''}<br><span class="docno">${c.doc||''}</span>`:'—'}</td>
+      <td>${actionCell}</td>`;
+    tb.appendChild(tr);
+    if(openIdx===i && !c.counted){
+      const up=document.createElement("tr"); up.className="uprow";
+      up.innerHTML=`<td colspan="7">
+        <div class="row-flex" style="align-items:center;">
+          <select id="who"><option>เมย์</option><option>โอที</option></select>
+          <input id="doc" placeholder="เลขเอกสาร (ใบรับ/ใบเบิก)" style="flex:1; min-width:200px;">
+          <input type="file" id="img" accept="image/*" multiple>
+          <button class="btn green" id="upBtn" onclick="confirmUp(${i})">ยืนยันการนับ</button>
+          <button class="btn ghost" onclick="openIdx=-1;render()">ปิด</button>
+        </div>
+        <div style="font-size:11px;color:#9a7b22;margin-top:6px;">* แนบรูปได้หลายใบ · ต้องมีรูป≥1ใบ + เลขเอกสาร ถึงนับคะแนน<br>🛡️ ระบบตรวจรูปซ้ำ + วันถ่าย (EXIF) อัตโนมัติ — รูปเก่า/รูปซ้ำจะถูกเตือน</div></td>`;
+      tb.appendChild(up);
+    }
+  });
+  $("bulkBar").style.display = (g==='A')?'none':'block';
+  $("selCount").textContent = selected.size;
+  const _unc=C.cats.filter(c=>!c.counted).length;
+  $("selAll").checked = _unc>0 && selected.size>=_unc;
+
+  const mW=C.cats.filter(c=>c.counted&&c.by==='เมย์').reduce((s,c)=>s+c.w,0);
+  const oW=C.cats.filter(c=>c.counted&&c.by==='โอที').reduce((s,c)=>s+c.w,0);
+  $("mC").textContent=C.cats.filter(c=>c.counted&&c.by==='เมย์').length;
+  $("oC").textContent=C.cats.filter(c=>c.counted&&c.by==='โอที').length;
+  $("mW").textContent=mW.toFixed(1)+"%"; $("oW").textContent=oW.toFixed(1)+"%";
+  $("mBar").style.width=mW.toFixed(1)+"%"; $("oBar").style.width=oW.toFixed(1)+"%";
+  $("tW").textContent=p.toFixed(1)+"%";
+  $("tWsub").textContent = g==='A'?'%KPI ที่ใช้คิดเงิน':'%ครอบคลุมกลุ่ม '+g;
+
+  const compPct=+$("compPct").value, amtB=+$("bAmtB").value, amtC=+$("bAmtC").value;
+  $("bAmtB").style.display=locked?"none":"inline-block"; $("maskB").style.display=locked?"inline-block":"none";
+  $("bAmtC").style.display=locked?"none":"inline-block"; $("maskC").style.display=locked?"inline-block":"none";
+  $("splitShow").textContent=(100-compPct)+":"+compPct;
+  const bCov=pct(GROUPS.B), cCov=pct(GROUPS.C);
+  $("bCov").textContent=bCov.toFixed(1)+"%"; $("cCov").textContent=cCov.toFixed(1)+"%";
+  $("bBonus").innerHTML=money(bonusPay(amtB,bCov,compPct));
+  $("cBonus").innerHTML=money(bonusPay(amtC,cCov,compPct));
+
+  const ci=closesThisMonth();
+  const qtxt = ci.parts.includes('B') ? ' (ปิดไตรมาส Q'+Math.ceil(ci.m/3)+')' : '';
+  $("closeHint").textContent = "เดือนนี้ปิด: "+ci.parts.join(' + ')+qtxt;
+
+  $("footnote").innerHTML = `<b>สรุปรอบการนับ:</b> A นับทุกเดือน (เงิน 500/เดือน) · B ทุกไตรมาส (ปลดโบนัสไตรมาส) · C ปีละครั้งช่วงเงียบ (ปลดโบนัสปลายปี) — ทุกกลุ่มต้องมีรูป+เลขเอกสาร · ยอดเงินดูด้วยรหัส · บันทึกจริงบนคลาวด์`;
+
+  $("closeBanner").innerHTML = closed
+    ? (overrideOn
+        ? '🔓 <span style="color:#b45309;font-weight:bold;">งวดปิดแล้ว · กำลังปลดล็อกแก้ไข (นับผิด) — ทุกการแก้ถูกบันทึกใน log</span>'
+        : '🔒 <span style="color:#8a1c1c;font-weight:bold;">งวดนี้ปิดแล้ว (freeze) — นับ/ยกเลิกถูกล็อก กดแล้วต้องใส่รหัสเจ้าของเพื่อแก้กรณีนับผิด</span>')
+    : '🔓 <span style="color:#16725a;font-weight:bold;">งวดเปิดอยู่ — แก้ไข/ยกเลิกได้ตามปกติ</span>';
+}
+
+/* ===================== init ===================== */
+async function init(){
+  $("tbody").innerHTML='<tr><td colspan="7" class="loadwrap">กำลังโหลดข้อมูล...</td></tr>';
+  try{
+    await loadEmployees();
+    await loadPeriod();
+    await loadAudit();
+    render();
+  }catch(e){
+    $("dbBadge").textContent="● เชื่อมฐานข้อมูลไม่ได้"; $("dbBadge").className="badge off";
+    alert("โหลดข้อมูลไม่สำเร็จ: "+(e.message||e));
+  }
+}
+
+/* gate bootstrap */
+$("gateBtn").addEventListener("click", tryGate);
+$("gatePin").addEventListener("keydown", e=>{ if(e.key==='Enter'){ e.preventDefault(); tryGate(); } });
+if(sessionStorage.getItem("kpi_gate")==="1"){ enterApp(); } else { setTimeout(()=>$("gatePin").focus(),100); }
+</script>
+</body>
+</html>
