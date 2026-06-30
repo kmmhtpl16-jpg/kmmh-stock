@@ -502,6 +502,9 @@ function closeModal(){ $("overlay").style.display="none"; }
 async function confirmPayroll(){
   if(busy) return;
   const ci=closesThisMonth();
+  let est=0;
+  ci.parts.forEach(gg=>{ const cv=pct(GROUPS[gg]); est += (gg==='A')?Math.round(500*cv/100):(gg==='B'?bonusPay(+$("bAmtB").value,cv,+$("compPct").value):bonusPay(+$("bAmtC").value,cv,+$("compPct").value)); });
+  if(est<=0){ if(!confirm("⚠️ ยังไม่ได้นับหมวดใดเลย (KPI 0%)\nปิดงวดตอนนี้จะไม่มียอดส่งให้ HR ยืนยัน\n\nต้องการปิดงวดจริงหรือไม่?")) return; }
   const ownerPin=await verifyPin('owner',"ใส่รหัสเจ้าของเพื่อปิดงวด + ส่งยอดให้ HR ยืนยัน:");
   if(!ownerPin) return;
   busy=true; const btn=$("confirmPayBtn"); btn.disabled=true; btn.textContent="กำลังส่ง...";
