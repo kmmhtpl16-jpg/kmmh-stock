@@ -64,7 +64,6 @@
   .overlay { position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:center; justify-content:center; padding:16px; z-index:50;}
   .modal { background:#fff; border-radius:12px; max-width:440px; width:100%; padding:18px 20px;}
   .modal h3 { color:#1f3864; margin-bottom:10px;} .modal table { font-size:13px;} .modal td { padding:5px 6px;}
-  /* gate */
   #gate { position:fixed; inset:0; background:#1f3864; display:flex; align-items:center; justify-content:center; padding:18px; z-index:100;}
   #gate .box { background:#fff; border-radius:16px; max-width:340px; width:100%; padding:26px 22px; text-align:center;}
   #gate img { width:64px; height:64px; border-radius:14px; margin-bottom:10px;}
@@ -79,7 +78,6 @@
 </head>
 <body>
 
-<!-- ===== หน้าล็อกรหัสก่อนเข้า ===== -->
 <div id="gate">
   <div class="box">
     <img src="icon-kmmh.png" alt="">
@@ -108,7 +106,7 @@
         <option value="10">ต.ค. 2569</option><option value="11">พ.ย. 2569</option><option value="12">ธ.ค. 2569</option>
       </select>
       <button class="btn ghost" id="lockBtn" onclick="toggleLock()">🔒 ดูยอดเงิน (ใส่รหัส)</button>
-      <button class="btn amber" onclick="openPayroll()">📤 ปิดงวด & ส่งเงินเดือน</button>
+      <button class="btn amber" onclick="openPayroll()">📤 ปิดงวด & ส่งยอดให้ HR</button>
       <span id="closeHint" style="font-size:12px;color:#16725a;font-weight:bold;"></span>
     </div>
 
@@ -175,10 +173,10 @@
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="modal"><h3>📤 ปิดงวด & ส่งเข้าเงินเดือน</h3><div id="payrollBody"></div>
+  <div class="modal"><h3>📤 ปิดงวด & ส่งยอดให้ HR ยืนยัน</h3><div id="payrollBody"></div>
     <div style="text-align:right; margin-top:14px;">
       <button class="btn ghost" onclick="closeModal()">ปิด</button>
-      <button class="btn green" id="confirmPayBtn" onclick="confirmPayroll()">ยืนยันปิดงวด + ส่งเงิน</button>
+      <button class="btn green" id="confirmPayBtn" onclick="confirmPayroll()">ปิดงวด + ส่งให้ HR ยืนยัน</button>
     </div>
   </div>
 </div>
@@ -267,7 +265,6 @@ async function loadEmployees(){
 async function loadPeriod(){
   curPeriod=periodStr(g, monthVal());
   const grp=g;
-  // reset cats
   GROUPS[grp].cats.forEach(c=>{ c.counted=false;c.by=null;c.doc="";c.imgs=[];c.hashes=[];c.rowId=null; });
   usedHashes.clear();
   const {data:pd}=await db.from("kpi_periods").select("*").eq("grp",grp).eq("period",curPeriod).maybeSingle();
@@ -470,7 +467,7 @@ async function undo(i){
   busy=false;
 }
 
-/* ===================== close period → payroll ===================== */
+/* ===================== close period → ส่งให้ HR ยืนยัน ===================== */
 async function fetchPct(grp, period){
   const {data:pd}=await db.from("kpi_periods").select("id").eq("grp",grp).eq("period",period).maybeSingle();
   if(!pd) return 0;
@@ -495,17 +492,17 @@ function openPayroll(){
       <tr><td><b>โอที รับสุทธิ</b></td><td><b>${net.toLocaleString()}</b> บ.</td></tr>`;
   const haveEmp = empMap['เมย์'] && empMap['โอที'];
   $("payrollBody").innerHTML=`
-    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">ยอดที่จะส่งเข้าระบบเงินเดือน (รายได้พิเศษ "KPI คลังสินค้า"):</div>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">ยอดที่จะส่งให้ HR ยืนยันก่อนเข้าจ่าย (รายได้พิเศษ "KPI คลังสินค้า"):</div>
     <table>${rows}</table>
-    ${haveEmp?'':'<div style="color:#c0392b;font-size:12px;margin-top:8px;">⚠️ ไม่พบพนักงาน เมย์/โอที ในฐานข้อมูล — ปิดงวดได้แต่จะไม่ส่งเงิน</div>'}
-    <div style="font-size:11px;color:#9aa3b2;margin-top:8px;">* ส่งแยกรายการตามกลุ่มที่ปิด · เจ้าของเปิดดู/แก้ได้ในแอปเงินเดือน · ปิดซ้ำ = อัปเดตยอดเดิม ไม่ซ้ำ</div>`;
+    ${haveEmp?'':'<div style="color:#c0392b;font-size:12px;margin-top:8px;">⚠️ ไม่พบพนักงาน เมย์/โอที ในฐานข้อมูล — ปิดงวดได้แต่จะไม่ส่งยอด</div>'}
+    <div style="font-size:11px;color:#9aa3b2;margin-top:8px;">* ส่งเป็นยอด "รอ HR ยืนยัน" ในแอปเงินเดือน → HR กดยืนยันถึงเข้าจ่ายจริง · ปิดซ้ำ = อัปเดตยอดเดิม ไม่ซ้ำ</div>`;
   $("overlay").style.display="flex";
 }
 function closeModal(){ $("overlay").style.display="none"; }
 async function confirmPayroll(){
   if(busy) return;
   const ci=closesThisMonth();
-  const ownerPin=await verifyPin('owner',"ใส่รหัสเจ้าของเพื่อปิดงวด + ส่งเงินเข้าระบบเงินเดือน:");
+  const ownerPin=await verifyPin('owner',"ใส่รหัสเจ้าของเพื่อปิดงวด + ส่งยอดให้ HR ยืนยัน:");
   if(!ownerPin) return;
   busy=true; const btn=$("confirmPayBtn"); btn.disabled=true; btn.textContent="กำลังส่ง...";
   try{
@@ -521,13 +518,13 @@ async function confirmPayroll(){
         p_grp:gg, p_period:period, p_year:YEAR_CE, p_month:ci.m,
         p_recipients:recipients, p_detail:{cov:cov, pay:pay, comp:comp}, p_pin:ownerPin });
       if(error || !data || !data.ok){ throw new Error('กลุ่ม '+gg+': '+((data&&data.error)||(error&&error.message)||'ไม่สำเร็จ')); }
-      summary.push(`${gg}: ${pay.toLocaleString()} บ./คน (${data.entries} รายการ)`);
+      summary.push(`${gg}: ${pay.toLocaleString()} บ./คน (${data.proposals} รายการ)`);
     }
     closeModal();
     await loadPeriod(); await loadAudit(); render();
-    alert("✅ ปิดงวด "+MONTHS[ci.m-1]+" "+YEAR_BE+" และส่งเงินเข้าระบบเงินเดือนแล้ว\n\n"+summary.join('\n'));
+    alert("✅ ปิดงวด "+MONTHS[ci.m-1]+" "+YEAR_BE+" · ส่งยอดให้ HR ยืนยันแล้ว\n\nยอดจะเข้าจ่ายเมื่อ HR กดยืนยันในแอปเงินเดือน (แท็บรายได้พิเศษ)\n\n"+summary.join('\n'));
   }catch(err){ alert("ปิดงวดไม่สำเร็จ: "+(err.message||err)); }
-  busy=false; btn.disabled=false; btn.textContent="ยืนยันปิดงวด + ส่งเงิน";
+  busy=false; btn.disabled=false; btn.textContent="ปิดงวด + ส่งให้ HR ยืนยัน";
 }
 
 /* ===================== render ===================== */
@@ -613,7 +610,7 @@ function render(){
   const qtxt = ci.parts.includes('B') ? ' (ปิดไตรมาส Q'+Math.ceil(ci.m/3)+')' : '';
   $("closeHint").textContent = "เดือนนี้ปิด: "+ci.parts.join(' + ')+qtxt;
 
-  $("footnote").innerHTML = `<b>สรุปรอบการนับ:</b> A นับทุกเดือน (เงิน 500/เดือน) · B ทุกไตรมาส (ปลดโบนัสไตรมาส) · C ปีละครั้งช่วงเงียบ (ปลดโบนัสปลายปี) — ทุกกลุ่มต้องมีรูป+เลขเอกสาร · ยอดเงินดูด้วยรหัส · บันทึกจริงบนคลาวด์`;
+  $("footnote").innerHTML = `<b>สรุปรอบการนับ:</b> A นับทุกเดือน (เงิน 500/เดือน) · B ทุกไตรมาส (ปลดโบนัสไตรมาส) · C ปีละครั้งช่วงเงียบ (ปลดโบนัสปลายปี) — ทุกกลุ่มต้องมีรูป+เลขเอกสาร · ยอดเงินดูด้วยรหัส · ปิดงวดส่งให้ HR ยืนยันก่อนเข้าจ่าย`;
 
   $("closeBanner").innerHTML = closed
     ? (overrideOn
