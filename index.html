@@ -116,6 +116,18 @@
   .sug .s-item img,.sug .s-item .noimg2{width:42px;height:42px;object-fit:cover;border-radius:6px;background:#eceff2;flex:none}
   .sug .s-nm{font-size:14px;font-weight:600}
   .sug .s-meta{font-size:12px;color:var(--sub)}
+  /* ---- เลือกหลายรายการเคลม (batch) ---- */
+  .selbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#eef6f0;border:1px solid #cfe6d8;border-radius:10px;padding:9px 11px;margin-bottom:10px;position:sticky;top:96px;z-index:8}
+  .selbar .sb-all{display:flex;align-items:center;gap:6px;margin:0;font-size:14px;color:var(--txt)}
+  .selbar .sb-all input{width:auto}
+  .selbar .sb-count{font-size:14px;color:var(--txt)}
+  .selbar .sb-btns{margin-left:auto;display:flex;gap:8px}
+  .selbar .sb-btn{border:none;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:#fff}
+  .selbar .sb-btn.gray{background:#6b7280}.selbar .sb-btn.green{background:var(--brand)}
+  .selbar .sb-btn:disabled{opacity:.4}
+  .card.item.picked{border-color:var(--brand);background:#f0f9f3}
+  .pickbox{margin:0;flex:none;display:flex;align-items:flex-start;padding-top:2px}
+  .pickbox input{width:20px;height:20px}
 </style>
 </head>
 <body>
@@ -173,6 +185,7 @@
   <div id="tab-claim" style="display:none">
     <div class="sechead">① รอเคลม</div>
     <div class="hint">ของที่แจ้งเคลมโรงงาน — ไม่เข้าการขาย ส่งคืนโรงงานแล้วกด "เคลมเสร็จแล้ว" เพื่อบันทึกผล</div>
+    <div id="claimSelBar"></div>
     <div id="claimPending"></div>
     <div class="sechead" style="margin-top:18px">② เคลมแล้ว</div>
     <div id="claimDone"></div>
@@ -257,6 +270,42 @@
     </div>
   </div>
 
+</div>
+
+<!-- EDIT CREDIT NOTE (แก้ไขใบลดหนี้) -->
+<div class="modal" id="editCreditModal">
+  <div class="sheet">
+    <h3>✎ แก้ไขใบลดหนี้</h3>
+    <div class="sub" id="editCreditSub"></div>
+    <label>เลขที่ใบลดหนี้</label>
+    <input id="editCreditNo" placeholder="เช่น NC6906-004">
+    <label>วันที่คืนโรงงาน (ใช้กับรายการที่คืนแล้ว)</label>
+    <input type="date" id="editCreditDate">
+    <div class="hint" style="margin:8px 0 0">เปลี่ยนเลขที่ = ย้ายทุกรายการในใบไปเลขใหม่ · กด "เอาออก" เพื่อปลดรายการกลับไปรอเคลม</div>
+    <div id="editCreditItems" style="margin-top:10px"></div>
+    <div class="row-btns">
+      <button class="btn gray" id="editCreditCancelBtn">ยกเลิก</button>
+      <button class="btn" id="editCreditSaveBtn">บันทึกการแก้ไข</button>
+    </div>
+  </div>
+</div>
+
+<!-- BATCH CLAIM (ออกใบลดหนี้ล็อตเดียว) -->
+<div class="modal" id="batchClaimModal">
+  <div class="sheet">
+    <h3>📑 ออกใบลดหนี้คืนโรงงาน (ล็อตเดียว)</h3>
+    <div class="sub" id="batchClaimCount"></div>
+    <label>วันที่คืนโรงงาน</label>
+    <input type="date" id="batchClaimDate">
+    <label>เลขที่ใบลดหนี้ (acc-billing) *</label>
+    <input id="batchClaimCreditNo" list="openCreditNotes2" placeholder="พิมพ์เลขใหม่ หรือเลือกใบที่เปิดอยู่">
+    <datalist id="openCreditNotes2"></datalist>
+    <div class="hint" style="margin:8px 0 0">รายการที่เลือกทั้งหมดจะถูกบันทึกเป็น "คืนสินค้า" ภายใต้เลขใบลดหนี้เดียวกัน</div>
+    <div class="row-btns">
+      <button class="btn gray" id="batchClaimCancelBtn">ยกเลิก</button>
+      <button class="btn" id="batchClaimSaveBtn">ออกใบลดหนี้</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -689,8 +738,12 @@ function renderClaim(){
   const pend = items.filter(it=>it.status==='claim_pending');
   const done = items.filter(it=>it.status==='claim_done').slice(0,20);
   $("#ccount").textContent = pend.length?("("+pend.length+")"):"";
-  $("#claimPending").innerHTML = pend.length ? pend.slice(0,20).map(it=>`
-    <div class="card item">
+  const pendIds = new Set(pend.map(it=>it.id));
+  claimSel.forEach(id=>{ if(!pendIds.has(id)) claimSel.delete(id); });
+  renderClaimSelBar(pend);
+  $("#claimPending").innerHTML = pend.length ? pend.map(it=>`
+    <div class="card item${claimSel.has(it.id)?' picked':''}">
+      <label class="pickbox" onclick="event.stopPropagation()"><input type="checkbox" ${claimSel.has(it.id)?'checked':''} onchange="toggleClaimPick(${it.id})"></label>
       ${photoTag(it)}
       <div class="info">
         <div class="code">${it.code||""}</div>
@@ -699,7 +752,7 @@ function renderClaim(){
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${(it.responsible_by||it.responsible_external)?" · ทำ: "+respName(it):""}${it.cause?" · "+it.cause:""}</div>
         ${transferMeta(it)}
         ${damageBlock(it)}
-        <button class="actbtn confirm" onclick="openClaim(${it.id})">✅ เคลมเสร็จแล้ว</button>
+        <button class="actbtn confirm" onclick="event.stopPropagation();openClaim(${it.id})">✅ เคลมเสร็จแล้ว (ทีละชิ้น)</button>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
   // เคลมแล้ว = แบบคืนสินค้า (ที่เหลืออยู่ใน claim_done) — แบบไม่คืนจะย้ายไปคลังตำหนิ ไม่อยู่ตรงนี้
@@ -719,6 +772,95 @@ function renderClaim(){
       </div>
     </div>`;}).join("") : '<div class="empty">ยังไม่มีประวัติเคลม</div>';
 }
+let claimSel = new Set();
+function escH(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+window.toggleClaimPick = id => { if(claimSel.has(id)) claimSel.delete(id); else claimSel.add(id); renderClaim(); };
+window.claimSelectAll = () => {
+  const pend = items.filter(it=>it.status==='claim_pending');
+  if(claimSel.size>=pend.length){ claimSel.clear(); } else { pend.forEach(it=>claimSel.add(it.id)); }
+  renderClaim();
+};
+function renderClaimSelBar(pend){
+  const bar=$("#claimSelBar"); if(!bar) return;
+  if(!pend.length){ bar.innerHTML=""; return; }
+  const n=claimSel.size, allOn=n>=pend.length && n>0;
+  bar.innerHTML = `<div class="selbar">
+      <label class="sb-all"><input type="checkbox" ${allOn?'checked':''} onchange="claimSelectAll()"> เลือกทั้งหมด</label>
+      <span class="sb-count">เลือกแล้ว <b>${n}</b> รายการ</span>
+      <div class="sb-btns">
+        <button class="sb-btn gray" ${n?'':'disabled'} onclick="printClaimSheet()">🖨️ ปริ้นใบนับ</button>
+        <button class="sb-btn green" ${n?'':'disabled'} onclick="openBatchClaim()">📑 ออกใบลดหนี้ล็อตนี้</button>
+      </div>
+    </div>`;
+}
+function selectedClaimItems(){ return items.filter(it=>claimSel.has(it.id) && it.status==='claim_pending'); }
+function groupClaimItems(list){
+  const map={};
+  list.forEach(it=>{
+    const key=(it.code||'')+'|'+(it.name||'')+'|'+(it.condition||'')+'|'+(it.cause||'');
+    if(!map[key]) map[key]={code:it.code||'',name:it.name||'',condition:it.condition||'',cause:it.cause||'',qty:0};
+    map[key].qty++;
+  });
+  return Object.values(map);
+}
+window.printClaimSheet = () => {
+  const list=selectedClaimItems();
+  if(!list.length){ toast("ยังไม่ได้เลือกรายการ"); return; }
+  const w=window.open("","_blank");
+  if(!w){ toast("เบราว์เซอร์บล็อกหน้าต่างพิมพ์ — อนุญาต popup ก่อน"); return; }
+  const grps=groupClaimItems(list), totalUnits=list.length, totalLines=grps.length;
+  const today=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  const rows=grps.map((g,i)=>`<tr>
+      <td class="c">${i+1}</td>
+      <td>${escH(g.code)}</td>
+      <td>${escH(g.name)}</td>
+      <td>${escH(g.condition)}${g.cause?'<br><span class="mut">สาเหตุ: '+escH(g.cause)+'</span>':''}</td>
+      <td class="c">${g.qty}</td>
+      <td class="c nb"></td>
+      <td></td>
+    </tr>`).join("");
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>ใบนับสินค้าเคลมคืนโรงงาน</title>
+  <style>
+    *{font-family:"TH Sarabun New","Sarabun",Tahoma,sans-serif}
+    body{margin:0;padding:24px;color:#111}
+    h2{margin:0 0 2px;font-size:23px;text-align:center}
+    .sub{text-align:center;font-size:14px;color:#444;margin-bottom:12px}
+    .head{display:flex;justify-content:space-between;font-size:15px;margin-bottom:10px}
+    table{width:100%;border-collapse:collapse;font-size:15px}
+    th,td{border:1px solid #333;padding:6px 8px;vertical-align:top}
+    th{background:#eee;text-align:center}
+    td.c{text-align:center} td.nb{height:30px}
+    .mut{color:#666;font-size:13px}
+    .sumline{margin-top:10px;font-size:16px;font-weight:bold}
+    .sign{display:flex;justify-content:space-between;margin-top:46px;font-size:15px}
+    .sign div{width:30%;text-align:center;border-top:1px dashed #333;padding-top:6px}
+    @media print{ body{padding:0} }
+    @page{size:A4;margin:14mm}
+  </style></head><body>
+    <h2>ใบนับสินค้าเคลมคืนโรงงาน</h2>
+    <div class="sub">คลังของตำหนิ — กิจมั่งมีโฮม</div>
+    <div class="head"><div>วันที่นับ: ${today}</div><div>เลขที่ใบลดหนี้: ______________________</div></div>
+    <table><thead><tr>
+      <th style="width:34px">ลำดับ</th><th style="width:110px">รหัส</th><th>ชื่อสินค้า</th>
+      <th style="width:150px">สภาพ / สาเหตุ</th><th style="width:56px">จำนวน<br>ในระบบ</th>
+      <th style="width:64px">นับจริง</th><th style="width:90px">หมายเหตุ</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <div class="sumline">รวม ${totalLines} รายการ · ${totalUnits} ชิ้น</div>
+    <div class="sign"><div>ผู้นับ</div><div>ผู้ตรวจ</div><div>ผู้รับคืนโรงงาน</div></div>
+    <script>window.onload=function(){setTimeout(function(){window.print()},350)}<\/script>
+  </body></html>`);
+  w.document.close();
+};
+window.openBatchClaim = () => {
+  const list=selectedClaimItems();
+  if(!list.length){ toast("ยังไม่ได้เลือกรายการ"); return; }
+  const grps=groupClaimItems(list);
+  $("#batchClaimCount").textContent = "เลือก "+grps.length+" รายการ · "+list.length+" ชิ้น";
+  $("#batchClaimDate").value = new Date().toISOString().slice(0,10);
+  $("#batchClaimCreditNo").value = "";
+  $("#openCreditNotes2").innerHTML = (openCreditNotes||[]).map(n=>`<option value="${n}">`).join("");
+  $("#batchClaimModal").classList.add("show");
+};
 let claimId = null, claimType = null;
 window.openClaim = id => {
   const it = items.find(x=>x.id===id); if(!it) return;
@@ -781,6 +923,30 @@ $("#claimSaveBtn").onclick = async ()=>{
   btn.disabled=false; btn.textContent=old;
 };
 
+$("#batchClaimCancelBtn").onclick = ()=> $("#batchClaimModal").classList.remove("show");
+$("#batchClaimSaveBtn").onclick = async ()=>{
+  const list=selectedClaimItems();
+  if(!list.length){ toast("ไม่มีรายการที่เลือก"); return; }
+  const creditNo=$("#batchClaimCreditNo").value.trim();
+  if(!creditNo){ toast("ใส่เลขที่ใบลดหนี้ก่อน"); return; }
+  const btn=$("#batchClaimSaveBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="กำลังบันทึก...";
+  try{
+    await db.from("stock_credit_notes").upsert({note_no:creditNo}, {onConflict:"note_no", ignoreDuplicates:true});
+    const ids=list.map(it=>it.id), cdate=$("#batchClaimDate").value||null;
+    const {error}=await db.from("stock_items").update({
+      status:'claim_done', claim_result:'returned', credit_note_no:creditNo,
+      claim_date:cdate, claim_ref:creditNo, claim_at:new Date().toISOString()
+    }).in("id",ids);
+    if(error) throw error;
+    await db.from("stock_audit").insert(ids.map(id=>({item_id:id, action:'claim_return', actor:null, detail:{credit_note_no:creditNo, date:cdate, batch:true}})));
+    toast("ออกใบลดหนี้ "+creditNo+" — "+ids.length+" ชิ้น ✅");
+    claimSel.clear();
+    $("#batchClaimModal").classList.remove("show");
+    await loadItems();
+  }catch(err){ toast("ผิดพลาด: "+(err.message||err)); btn.disabled=false; btn.textContent=old; return; }
+  btn.disabled=false; btn.textContent=old;
+};
+
 // ---- credit notes (ใบลดหนี้คืนโรงงาน) ----
 async function loadCreditNotes(){
   // หัวใบ (สถานะ เปิด/ปิด)
@@ -834,6 +1000,7 @@ function renderCreditNotes(){
               <div class="meta">${it.code||""} · ${it.status==='claim_done'?("✅ คืนแล้ว"+(it.claim_date?" "+it.claim_date:"")):"⏳ ยังไม่คืน"}${it.doc_file_url?` · <a href="${it.doc_file_url}" target="_blank" onclick="event.stopPropagation()" style="color:var(--brand)">📎 ไฟล์</a>`:""}</div>
             </div>
           </div>`).join("") : '<div class="meta">— ยังไม่มีรายการในใบนี้ —</div>'}
+        ${!closed?`<button class="btn sm" style="margin-top:8px;background:var(--warn)" onclick="event.stopPropagation();openEditCredit('${c.note_no}')">✎ แก้ไขใบลดหนี้</button>`:""}
         ${!closed?`<button class="btn gray sm" style="margin-top:8px" onclick="event.stopPropagation();closeCreditNote('${c.note_no}')">🔒 ปิดใบลดหนี้นี้</button>`:""}
       </div>`;
     return `
@@ -859,6 +1026,73 @@ window.closeCreditNote = async no => {
   await loadCreditNotes();
 };
 $("#creditSearch").oninput = ()=> renderCreditNotes();
+
+// ---- แก้ไขใบลดหนี้ (เอารายการออก / เปลี่ยนเลขที่ / แก้วันที่คืน) ----
+let editCreditNoCur = null;
+window.openEditCredit = no => {
+  const c = creditNotes.find(x=>x.note_no===no);
+  if(!c){ toast("ไม่พบใบลดหนี้"); return; }
+  if(c.head && c.head.status==='closed'){ toast("ใบนี้ปิดแล้ว แก้ไขไม่ได้"); return; }
+  editCreditNoCur = no;
+  $("#editCreditSub").textContent = c.items.length+" รายการในใบนี้";
+  $("#editCreditNo").value = no;
+  const doneDates = c.items.filter(it=>it.status==='claim_done' && it.claim_date).map(it=>it.claim_date);
+  $("#editCreditDate").value = doneDates[0] || "";
+  $("#editCreditItems").innerHTML = c.items.length ? c.items.map(it=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eef2f7">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600">${escH(it.name)}</div>
+        <div class="meta">${escH(it.code)} · ${it.status==='claim_done'?'✅ คืนแล้ว':'⏳ ยังไม่คืน'}</div>
+      </div>
+      <button class="sb-btn" style="background:var(--danger)" onclick="removeItemFromCredit(${it.id})">เอาออก</button>
+    </div>`).join("") : '<div class="meta">— ไม่มีรายการ —</div>';
+  $("#editCreditModal").classList.add("show");
+};
+window.removeItemFromCredit = async id => {
+  const it = items.find(x=>x.id===id) || (creditNotes.find(c=>c.note_no===editCreditNoCur)||{items:[]}).items.find(x=>x.id===id);
+  if(!it) return;
+  if(!confirm("เอา \""+(it.name||"")+"\" ออกจากใบลดหนี้นี้? ของจะกลับไปที่ \"รอเคลม\"")) return;
+  const upd={credit_note_no:null, claim_ref:null};
+  if(it.status==='claim_done'){ upd.status='claim_pending'; upd.claim_result=null; upd.claim_date=null; upd.claim_at=null; }
+  if(it.doc_type==='credit_note'){ upd.doc_type=null; upd.doc_no=null; }
+  const {error}=await db.from("stock_items").update(upd).eq("id",id);
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  await db.from("stock_audit").insert({item_id:id, action:'credit_remove', actor:null, detail:{from:editCreditNoCur}});
+  toast("เอาออกจากใบแล้ว → กลับไปรอเคลม");
+  await loadItems(); await loadCreditNotes();
+  const still = creditNotes.find(c=>c.note_no===editCreditNoCur);
+  if(still && still.items.length) openEditCredit(editCreditNoCur);
+  else $("#editCreditModal").classList.remove("show");
+};
+$("#editCreditCancelBtn").onclick = ()=> $("#editCreditModal").classList.remove("show");
+$("#editCreditSaveBtn").onclick = async ()=>{
+  if(!editCreditNoCur) return;
+  const oldNo = editCreditNoCur;
+  const newNo = $("#editCreditNo").value.trim();
+  const newDate = $("#editCreditDate").value || null;
+  if(!newNo){ toast("เลขที่ใบลดหนี้ห้ามว่าง"); return; }
+  const btn=$("#editCreditSaveBtn"); btn.disabled=true; const old=btn.textContent; btn.textContent="กำลังบันทึก...";
+  try{
+    if(newNo!==oldNo){
+      // กันเลขซ้ำกับใบอื่นที่มีอยู่
+      const dup = creditNotes.find(c=>c.note_no===newNo);
+      if(dup){ toast("เลข "+newNo+" มีอยู่แล้ว ใช้เลขอื่น"); btn.disabled=false; btn.textContent=old; return; }
+      const oldHead = (creditNotes.find(c=>c.note_no===oldNo)||{}).head || {};
+      await db.from("stock_credit_notes").upsert({note_no:newNo, status:oldHead.status||'open', created_at:oldHead.created_at||new Date().toISOString()}, {onConflict:"note_no", ignoreDuplicates:true});
+      await db.from("stock_items").update({credit_note_no:newNo, claim_ref:newNo}).eq("credit_note_no",oldNo);
+      await db.from("stock_items").update({doc_no:newNo}).eq("doc_type","credit_note").eq("doc_no",oldNo);
+      await db.from("stock_credit_notes").delete().eq("note_no",oldNo);
+      await db.from("stock_audit").insert({item_id:null, action:'credit_rename', actor:null, detail:{from:oldNo, to:newNo}});
+    }
+    if(newDate){
+      await db.from("stock_items").update({claim_date:newDate}).eq("credit_note_no",newNo).eq("status","claim_done");
+    }
+    toast("บันทึกการแก้ไขใบลดหนี้แล้ว ✅");
+    $("#editCreditModal").classList.remove("show");
+    await loadItems(); await loadCreditNotes();
+  }catch(err){ toast("ผิดพลาด: "+(err.message||err)); btn.disabled=false; btn.textContent=old; return; }
+  btn.disabled=false; btn.textContent=old;
+};
 
 // ---- pricing (owner PIN, via modal) ----
 function renderPrice(){
