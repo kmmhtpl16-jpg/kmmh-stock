@@ -830,16 +830,18 @@ function renderClaimSelBar(pend){
 }
 function selectedClaimItems(){ return items.filter(it=>claimSel.has(it.id) && it.status==='claim_pending'); }
 function groupClaimItems(list){
+  // รหัส (D-xxxx) เป็นรหัสรายชิ้น ไม่ซ้ำกัน → จัดกลุ่มด้วย "ชื่อสินค้า" เพื่อรวมสินค้าตัวเดียวกัน
   const map={};
   list.forEach(it=>{
-    const key=(it.code||'')+'|'+(it.name||'');
-    if(!map[key]) map[key]={code:it.code||'',name:it.name||'',conds:new Set(),causes:new Set(),qty:0};
+    const key=(it.name||'').trim();
+    if(!map[key]) map[key]={codes:new Set(),name:it.name||'',conds:new Set(),causes:new Set(),qty:0};
     map[key].qty++;
+    if(it.code) map[key].codes.add(it.code);
     if(it.condition) map[key].conds.add(it.condition);
     if(it.cause) map[key].causes.add(it.cause);
   });
   return Object.values(map).map(g=>({
-    code:g.code, name:g.name, qty:g.qty,
+    code:[...g.codes].join(', '), name:g.name, qty:g.qty,
     condition:[...g.conds].join(', '),
     cause:[...g.causes].join(', ')
   }));
