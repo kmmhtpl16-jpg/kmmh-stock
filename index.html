@@ -832,11 +832,17 @@ function selectedClaimItems(){ return items.filter(it=>claimSel.has(it.id) && it
 function groupClaimItems(list){
   const map={};
   list.forEach(it=>{
-    const key=(it.code||'')+'|'+(it.name||'')+'|'+(it.condition||'')+'|'+(it.cause||'');
-    if(!map[key]) map[key]={code:it.code||'',name:it.name||'',condition:it.condition||'',cause:it.cause||'',qty:0};
+    const key=(it.code||'')+'|'+(it.name||'');
+    if(!map[key]) map[key]={code:it.code||'',name:it.name||'',conds:new Set(),causes:new Set(),qty:0};
     map[key].qty++;
+    if(it.condition) map[key].conds.add(it.condition);
+    if(it.cause) map[key].causes.add(it.cause);
   });
-  return Object.values(map);
+  return Object.values(map).map(g=>({
+    code:g.code, name:g.name, qty:g.qty,
+    condition:[...g.conds].join(', '),
+    cause:[...g.causes].join(', ')
+  }));
 }
 window.printClaimSheet = () => {
   const list=selectedClaimItems();
