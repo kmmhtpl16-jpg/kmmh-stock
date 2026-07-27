@@ -138,11 +138,12 @@
         <label style="font-size:12px;"><input type="checkbox" id="selAll" onclick="toggleAll(this.checked)"> เลือกทั้งหมด</label>
         <span style="font-size:12px;">เลือกแล้ว <b id="selCount">0</b> หมวด</span>
         <select id="bulkWho"><option>เมย์</option><option>โอที</option></select>
-        <input id="bulkDoc" placeholder="เลขเอกสาร (ใช้ร่วมกับหมวดที่เลือก)" style="flex:1; min-width:170px;">
+        <input id="bulkDoc" placeholder="เลขเอกสารปรับสต๊อก (กรอกเมื่อสต๊อกไม่ตรง)" style="flex:1; min-width:170px;">
         <input type="file" id="bulkImg" accept="image/*" multiple>
-        <button class="btn green" id="bulkBtn" onclick="bulkCount()">นับหมวดที่เลือก + อัปรูป</button>
+        <button class="btn green" id="bulkBtn" onclick="bulkCount(false)">นับหมวดที่เลือก + อัปรูป</button>
+        <button class="btn" id="bulkOkBtn" onclick="bulkCount(true)" style="background:#0e9f6e;" title="ใช้เมื่อนับแล้วสต๊อกตรงกับระบบ ไม่มีเอกสารปรับ">✔️ สต๊อกตรง</button>
       </div>
-      <div style="font-size:11px;color:#5b6b86;margin-top:5px;">* B/C นับหลายหมวดพร้อมกันได้ · รูป+เลขเอกสารชุดนี้จะผูกกับทุกหมวดที่เลือก (A ต้องกดทีละหมวด)<br>🛡️ ระบบตรวจ <b>รูปซ้ำ</b> และ <b>วันถ่าย</b> อัตโนมัติ — ใช้รูปจากการนับจริงครั้งนี้เท่านั้น</div>
+      <div style="font-size:11px;color:#5b6b86;margin-top:5px;">* B/C นับหลายหมวดพร้อมกันได้ · รูป+เลขเอกสารชุดนี้จะผูกกับทุกหมวดที่เลือก (A ต้องกดทีละหมวด)<br>✔️ <b>สต๊อกตรง</b> = นับแล้วตรงกับระบบ ไม่มีเอกสารปรับ กดปุ่มนี้ได้เลย (ไม่ต้องกรอกเลขเอกสาร แต่ยังต้องแนบรูป)<br>🛡️ ระบบตรวจ <b>รูปซ้ำ</b> และ <b>วันถ่าย</b> อัตโนมัติ — ใช้รูปจากการนับจริงครั้งนี้เท่านั้น</div>
     </div>
     <div id="tableWrap">
       <table>
@@ -435,13 +436,15 @@ function toggleAll(ch){ const C=cur(); selected=new Set(); if(ch) C.cats.forEach
 /* ===================== counting actions ===================== */
 async function toggle(i){ if(closed && !overrideOn){ if(!(await requestOverride())) return; } openIdx=(openIdx===i?-1:i); render(); }
 
-async function confirmUp(i){
+async function confirmUp(i, straight){
   if(busy) return;
-  const who=$("who").value, doc=$("doc").value.trim(), fs=$("img").files;
-  if(!doc){ alert("กรุณากรอกเลขเอกสาร"); return; }
+  const who=$("who").value, fs=$("img").files;
+  let doc=$("doc").value.trim();
+  if(straight){ doc = doc || "สต๊อกตรง"; }
+  else if(!doc){ alert("กรุณากรอกเลขเอกสาร\n(ถ้าสต๊อกตรงกับระบบ ไม่มีเอกสารปรับ ให้กดปุ่ม \"✔️ สต๊อกตรง\" แทน)"); return; }
   if(!fs.length){ alert("กรุณาแนบรูป (แนบได้หลายใบ)"); return; }
   const hashes=await checkImages(fs, monthVal()); if(!hashes) return;
-  busy=true; const btn=document.getElementById("upBtn"); if(btn){ btn.disabled=true; btn.textContent="กำลังบันทึก..."; }
+  busy=true; const btn=document.getElementById(straight?"okBtn":"upBtn"); if(btn){ btn.disabled=true; btn.textContent="กำลังบันทึก..."; }
   try{
     await ensurePeriod();
     const c=cur().cats[i], code=g+String(i+1).padStart(2,'0');
@@ -454,21 +457,23 @@ async function confirmUp(i){
     if(error) throw error;
     c.counted=true; c.by=who; c.doc=doc; c.imgs=urls; c.hashes=hashes; c.rowId=data.id;
     hashes.forEach(h=>usedHashes.set(h,{by:who,doc,cat:c.name}));
-    await logAudit('นับหมวด', `${code} ${c.name} โดย ${who}`+(overrideOn?' · หลังปิดงวด':''));
+    await logAudit('นับหมวด', `${code} ${c.name} โดย ${who}`+(straight?' · สต๊อกตรง (ไม่มีเอกสาร)':'')+(overrideOn?' · หลังปิดงวด':''));
     openIdx=-1; render();
   }catch(err){ alert("บันทึกไม่สำเร็จ: "+(err.message||err)); }
   busy=false;
 }
 
-async function bulkCount(){
+async function bulkCount(straight){
   if(busy) return;
   if(closed && !overrideOn){ if(!(await requestOverride())) return; }
-  const who=$("bulkWho").value, doc=$("bulkDoc").value.trim(), fs=$("bulkImg").files;
+  const who=$("bulkWho").value, fs=$("bulkImg").files;
+  let doc=$("bulkDoc").value.trim();
+  if(straight){ doc = doc || "สต๊อกตรง"; }
   if(selected.size===0){ alert("เลือกหมวดที่จะนับก่อน (ติ๊กช่อง 'เลือก')"); return; }
-  if(!doc){ alert("กรอกเลขเอกสาร"); return; }
+  if(!straight && !doc){ alert("กรอกเลขเอกสาร\n(ถ้าสต๊อกตรงกับระบบ ไม่มีเอกสารปรับ ให้กดปุ่ม \"✔️ สต๊อกตรง\" แทน)"); return; }
   if(!fs.length){ alert("แนบรูป (แนบได้หลายใบ)"); return; }
   const hashes=await checkImages(fs, monthVal()); if(!hashes) return;
-  busy=true; const btn=$("bulkBtn"); btn.disabled=true; btn.textContent="กำลังบันทึก...";
+  busy=true; const btn=straight?$("bulkOkBtn"):$("bulkBtn"); btn.disabled=true; btn.textContent="กำลังบันทึก...";
   try{
     await ensurePeriod();
     const C=cur(); const idxs=[...selected].filter(i=>!C.cats[i].counted);
@@ -479,10 +484,11 @@ async function bulkCount(){
     if(error) throw error;
     (data||[]).forEach(r=>{ const c=C.cats.find(x=>x.name===r.cat_name); if(c){ c.counted=true; c.by=who; c.doc=doc; c.imgs=r.photo_urls; c.hashes=r.img_hashes; c.rowId=r.id; } });
     hashes.forEach(h=>usedHashes.set(h,{by:who,doc,cat:'กลุ่ม '+g}));
-    await logAudit('นับหลายหมวด', `กลุ่ม ${g} จำนวน ${idxs.length} หมวด โดย ${who}`+(overrideOn?' · หลังปิดงวด':''));
+    await logAudit('นับหลายหมวด', `กลุ่ม ${g} จำนวน ${idxs.length} หมวด โดย ${who}`+(straight?' · สต๊อกตรง (ไม่มีเอกสาร)':'')+(overrideOn?' · หลังปิดงวด':''));
     selected=new Set(); $("bulkDoc").value=""; $("bulkImg").value=""; render();
   }catch(err){ alert("บันทึกไม่สำเร็จ: "+(err.message||err)); }
-  busy=false; btn.disabled=false; btn.textContent="นับหมวดที่เลือก + อัปรูป";
+  busy=false; $("bulkBtn").disabled=false; $("bulkBtn").textContent="นับหมวดที่เลือก + อัปรูป";
+  $("bulkOkBtn").disabled=false; $("bulkOkBtn").textContent="✔️ สต๊อกตรง";
 }
 
 async function undo(i){
@@ -602,7 +608,7 @@ function render(){
       <td class="w">${wcell}</td>
       <td><span style="color:#9aa3b2" title="อ้างอิงยอดขาย 6 เดือนแรก ปี 69">${c.items}</span></td>
       <td>${c.counted?`<span class="check">✓</span><span class="tag ${c.by==='เมย์'?'may':'ot'}">${c.by||''}</span>`:'<span style="color:#9aa3b2">ยังไม่นับ</span>'}</td>
-      <td>${c.counted?`${(c.imgs||[]).map(u=>`<img class="thumb" src="${u}">`).join(' ')}${(c.imgs||[]).length>1?`<span class="docno"> (${c.imgs.length} ใบ)</span>`:''}<br><span class="docno">${c.doc||''}</span>`:'—'}</td>
+      <td>${c.counted?`${(c.imgs||[]).map(u=>`<img class="thumb" src="${u}">`).join(' ')}${(c.imgs||[]).length>1?`<span class="docno"> (${c.imgs.length} ใบ)</span>`:''}<br>${c.doc==='สต๊อกตรง'?'<span style="font-size:11px;color:#0e9f6e;font-weight:bold;">✔️ สต๊อกตรง</span>':`<span class="docno">${c.doc||''}</span>`}`:'—'}</td>
       <td>${actionCell}</td>`;
     tb.appendChild(tr);
     if(openIdx===i && !c.counted){
@@ -610,12 +616,13 @@ function render(){
       up.innerHTML=`<td colspan="7">
         <div class="row-flex" style="align-items:center;">
           <select id="who"><option>เมย์</option><option>โอที</option></select>
-          <input id="doc" placeholder="เลขเอกสาร (ใบรับ/ใบเบิก)" style="flex:1; min-width:200px;">
+          <input id="doc" placeholder="เลขเอกสารปรับสต๊อก (กรอกเมื่อสต๊อกไม่ตรง)" style="flex:1; min-width:200px;">
           <input type="file" id="img" accept="image/*" multiple>
-          <button class="btn green" id="upBtn" onclick="confirmUp(${i})">ยืนยันการนับ</button>
+          <button class="btn green" id="upBtn" onclick="confirmUp(${i},false)">ยืนยันการนับ</button>
+          <button class="btn" id="okBtn" onclick="confirmUp(${i},true)" style="background:#0e9f6e;" title="ใช้เมื่อนับแล้วสต๊อกตรงกับระบบ ไม่มีเอกสารปรับ">✔️ สต๊อกตรง</button>
           <button class="btn ghost" onclick="openIdx=-1;render()">ปิด</button>
         </div>
-        <div style="font-size:11px;color:#9a7b22;margin-top:6px;">* แนบรูปได้หลายใบ · ต้องมีรูป≥1ใบ + เลขเอกสาร ถึงนับคะแนน<br>🛡️ ระบบตรวจรูปซ้ำ + วันถ่าย (EXIF) อัตโนมัติ — รูปเก่า/รูปซ้ำจะถูกเตือน</div></td>`;
+        <div style="font-size:11px;color:#9a7b22;margin-top:6px;">* แนบรูปได้หลายใบ · ต้องมีรูป≥1ใบเสมอ<br>✔️ <b>สต๊อกตรง</b> = นับแล้วตรงกับระบบ ไม่มีเอกสารปรับ กดได้เลยไม่ต้องกรอกเลขเอกสาร · ถ้าต้องปรับสต๊อกให้กรอกเลขเอกสารแล้วกด "ยืนยันการนับ"<br>🛡️ ระบบตรวจรูปซ้ำ + วันถ่าย (EXIF) อัตโนมัติ — รูปเก่า/รูปซ้ำจะถูกเตือน</div></td>`;
       tb.appendChild(up);
     }
   });
