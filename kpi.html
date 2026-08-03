@@ -102,12 +102,16 @@
   <div class="panel">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
       <span style="font-size:13px;">รอบเดือน:</span>
-      <select id="monthSel" class="month" onchange="onMonthChange()">
-        <option value="1">ม.ค. 2569</option><option value="2">ก.พ. 2569</option><option value="3">มี.ค. 2569</option>
-        <option value="4">เม.ย. 2569</option><option value="5">พ.ค. 2569</option><option value="6">มิ.ย. 2569</option>
-        <option value="7" selected>ก.ค. 2569</option><option value="8">ส.ค. 2569</option><option value="9">ก.ย. 2569</option>
-        <option value="10">ต.ค. 2569</option><option value="11">พ.ย. 2569</option><option value="12">ธ.ค. 2569</option>
-      </select>
+      <select id="monthSel" class="month" onchange="onMonthChange()"></select>
+      <script>
+      /* สร้างตัวเลือกเดือนตามปีปัจจุบัน + เลือก "เดือนปัจจุบัน" อัตโนมัติ (แยกสคริปต์ ให้ทำงานเสมอ) */
+      (function(){
+        var M=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+        var d=new Date(), be=d.getFullYear()+543, cm=d.getMonth()+1, s=document.getElementById("monthSel"), h="";
+        for(var i=0;i<12;i++){ h+='<option value="'+(i+1)+'"'+((i+1)===cm?' selected':'')+'>'+M[i]+' '+be+'</option>'; }
+        s.innerHTML=h; s.value=String(cm);
+      })();
+      </script>
       <button class="btn ghost" id="lockBtn" onclick="toggleLock()">🔒 ดูยอดเงิน (ใส่รหัส)</button>
       <button class="btn amber" onclick="openPayroll()">📤 ปิดงวด & ส่งยอดให้ HR</button>
       <span id="closeHint" style="font-size:12px;color:#16725a;font-weight:bold;"></span>
@@ -233,7 +237,10 @@ async function ensureSession(){
   return ok;
 }
 const BUCKET = "stock-photos";
-const YEAR_CE = 2026, YEAR_BE = 2569;
+/* ปีปัจจุบันอัตโนมัติ (ไม่ต้องแก้โค้ดทุกปี) */
+const NOW_D = new Date();
+const YEAR_CE = NOW_D.getFullYear(), YEAR_BE = YEAR_CE + 543;
+const THIS_MONTH = NOW_D.getMonth() + 1;
 
 /* ===================== หมวด (เช็กลิสต์ระดับหมวด) =====================
    A ถ่วงน้ำหนักด้วยมูลค่าขายจริง ปี 2569 (ม.ค.–มิ.ย.) · B/C น้ำหนักเท่ากันทุกหมวด
@@ -267,6 +274,13 @@ let empMap={}, busy=false;
 const usedHashes = new Map();
 const $=id=>document.getElementById(id);
 function monthVal(){ return +$("monthSel").value; }
+/* กันเหนียว: ถ้าตัวเลือกเดือนยังว่าง (สคริปต์ด้านบนไม่ทำงาน) ให้สร้างใหม่ + เลือกเดือนปัจจุบัน */
+function buildMonthOptions(){
+  const sel=$("monthSel"); if(!sel || sel.options.length) return;
+  sel.innerHTML = MONTHS.map((nm,i)=>`<option value="${i+1}"${(i+1)===THIS_MONTH?' selected':''}>${nm} ${YEAR_BE}</option>`).join('');
+  sel.value = String(THIS_MONTH);
+}
+buildMonthOptions();
 function periodStr(grp, m){ if(grp==='A') return YEAR_CE+'-'+String(m).padStart(2,'0'); if(grp==='B') return YEAR_CE+'-Q'+Math.ceil(m/3); return ''+YEAR_CE; }
 function cur(){ return GROUPS[g]; }
 function pct(grp){ return grp.cats.filter(c=>c.counted).reduce((s,c)=>s+c.w,0); }
