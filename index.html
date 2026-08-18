@@ -401,6 +401,23 @@
 </div>
 
 <!-- PRICE set/edit (owner PIN) -->
+<!-- CANCEL SALE -->
+<div class="modal" id="cancelSaleModal">
+  <div class="sheet">
+    <h3>↩️ ยกเลิกการขาย</h3>
+    <div class="sub" id="cancelSaleItemName"></div>
+    <div class="hint" style="margin:6px 0 10px">กดแล้วสินค้าจะกลับไปสถานะ “พร้อมขาย” — รายการขายเดิมยังเก็บไว้ในประวัติ ติดป้าย “ยกเลิกแล้ว”</div>
+    <label>เหตุผล (ไม่ใส่ก็ได้)</label>
+    <input id="cancelSaleReason" placeholder="เช่น ลูกค้าคืนของ / กดขายผิดชิ้น">
+    <label>รหัสเจ้าของ</label>
+    <input type="password" inputmode="numeric" id="cancelSalePin" class="pin" placeholder="••••">
+    <div class="row-btns">
+      <button class="btn gray" id="cancelSaleCloseBtn">กลับ</button>
+      <button class="btn" id="cancelSaleConfirmBtn" style="background:var(--warn)">ยืนยันยกเลิกการขาย</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="priceModal">
   <div class="sheet">
     <h3 id="priceTitle">💰 ตั้งราคา</h3>
@@ -570,10 +587,19 @@ $("#f_resp").onchange = e => {
 
 // ---- load items ----
 let filter = "all", searchQ = "";
+let openSaleByItem = {};
+async function loadOpenSales(){
+  const {data,error} = await db.from("stock_sales")
+    .select("id,item_id,sold_price,seller_name,marked_at")
+    .is("cancelled_at",null).eq("deducted_in_acc",false);
+  openSaleByItem = {};
+  if(!error) (data||[]).forEach(s=>{ openSaleByItem[s.item_id]=s; });
+}
 async function loadItems(){
   const {data,error} = await db.from("stock_items").select("*").neq("status","removed").order("created_at",{ascending:false});
   if(error){ toast("โหลดรายการไม่ได้: "+error.message); return; }
   items = data||[];
+  await loadOpenSales();
   renderList(); renderApprove(); renderPrice(); renderHistory(); renderClaim();
   loadCreditNotes();
   const aCnt=items.filter(it=>it.status==='pending_review').length;
@@ -720,9 +746,42 @@ function renderList(){
         <div class="price ${it.price_status==='pending'?'pending':''}">${it.price_status==='set'?("฿ "+Number(it.preset_price).toLocaleString()):"รอตั้งราคา"}</div>
         ${statusBadge(it.status)}
         ${transferMeta(it)}
+        ${cancelSaleBtn(it)}
       </div>
     </div>`).join("");
 }
+function cancelSaleBtn(it){
+  if(it.status!=='sold_pending') return "";
+  const s = openSaleByItem[it.id];
+  if(!s) return "";
+  return `<button class="actbtn" style="background:var(--warn)" onclick="event.stopPropagation();openCancelSale(${s.id},${it.id})">↩️ ยกเลิกการขาย</button>`;
+}
+let cancelSaleId=null;
+window.openCancelSale = (saleId,itemId) => {
+  const it = items.find(x=>x.id===itemId);
+  cancelSaleId = saleId;
+  $("#cancelSaleItemName").textContent = it ? ((it.code||"")+" "+(it.name||"")) : ("รายการ #"+saleId);
+  $("#cancelSaleReason").value=""; $("#cancelSalePin").value="";
+  $("#cancelSaleModal").classList.add("show");
+};
+$("#cancelSaleCloseBtn").onclick = ()=> $("#cancelSaleModal").classList.remove("show");
+$("#cancelSaleConfirmBtn").onclick = async ()=>{
+  if(cancelSaleId==null) return;
+  const pin = $("#cancelSalePin").value.trim();
+  if(!pin){ toast("ใส่รหัสเจ้าของ"); return; }
+  const btn=$("#cancelSaleConfirmBtn"); const old=btn.textContent;
+  btn.disabled=true; btn.textContent="กำลังยกเลิก...";
+  const {data,error} = await db.rpc("stock_cancel_sale",{
+    p_sale_id:cancelSaleId, p_pin:pin, p_reason:$("#cancelSaleReason").value.trim()||null
+  });
+  btn.disabled=false; btn.textContent=old;
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  if(!data || !data.ok){ toast(data&&data.error?data.error:"ยกเลิกไม่สำเร็จ"); return; }
+  $("#cancelSaleModal").classList.remove("show");
+  cancelSaleId=null;
+  toast("ยกเลิกการขายแล้ว — ของกลับไปพร้อมขาย ✅");
+  await loadItems();
+};
 document.querySelectorAll("#filterbar button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#filterbar button").forEach(x=>x.classList.remove("on"));
   b.classList.add("on"); filter=b.dataset.f; renderList();
@@ -1256,24 +1315,27 @@ const hoursAgo = ts => { if(!ts) return ""; const h=(Date.now()-new Date(ts).get
 let sales = [];
 async function renderHistory(){
   const {data,error} = await db.from("stock_sales")
-    .select("id,item_id,sold_price,bill_no,seller_name,marked_by,marked_at,deducted_in_acc")
+    .select("id,item_id,sold_price,bill_no,seller_name,marked_by,marked_at,deducted_in_acc,cancelled_at,cancel_reason")
     .order("marked_at",{ascending:false}).limit(20);
   if(error){ $("#historylist").innerHTML='<div class="empty">โหลดไม่ได้: '+error.message+'</div>'; return; }
   sales = data||[];
-  const {count} = await db.from("stock_sales").select("id",{count:'exact',head:true}).eq("deducted_in_acc",false);
+  const {count} = await db.from("stock_sales").select("id",{count:'exact',head:true}).eq("deducted_in_acc",false).is("cancelled_at",null);
   $("#histcount").textContent = count?("("+count+")"):"";
   if(!sales.length){ $("#historylist").innerHTML='<div class="empty">ยังไม่มีประวัติการขาย</div>'; return; }
   $("#historylist").innerHTML = sales.map(s=>{
     const it = items.find(x=>x.id===s.item_id)||{};
     const hasBill = !!(s.bill_no && (""+s.bill_no).trim());
-    const billBlock = hasBill
+    const cancelled = !!s.cancelled_at;
+    const billBlock = cancelled
+      ? `<div style="margin-top:4px"><span class="badge b-nobill">↩️ ยกเลิกแล้ว</span></div>${s.cancel_reason?`<div class="meta">📝 ${s.cancel_reason}</div>`:""}`
+      : hasBill
       ? `<div class="meta">🧾 บิล: <b>${s.bill_no}</b> · ✅ ตัดแล้ว</div>`
       : `<div style="margin-top:4px"><span class="badge b-nobill">⚠️ ยังไม่มีเลขบิล</span></div>
          <div class="billrow">
            <input id="bill_${s.id}" placeholder="ใส่เลขบิลขาย">
            <button class="btn" onclick="saveBill(${s.id})">บันทึก = ตัดสต๊อก</button>
          </div>`;
-    return `<div class="card item ${hasBill?'done':'nobill'}">
+    return `<div class="card item ${cancelled?'done':(hasBill?'done':'nobill')}" ${cancelled?'style="opacity:.6"':''}>
       ${photoTag(it)}
       <div class="info">
         <div class="code">${it.code||""}</div>
