@@ -62,6 +62,8 @@
   .btn.warn{background:var(--warn)} .btn.gray{background:#6b7280}
   .actbtn{display:inline-block;padding:8px 14px;border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:600;margin-top:8px}
   .actbtn.sell{background:var(--brand)} .actbtn.confirm{background:var(--warn)}
+  .actrow{display:flex;gap:8px;flex-wrap:wrap}
+  .actrow .actbtn{font-size:13px;padding:7px 12px}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-end;z-index:60}
   .modal.show{display:flex}
   .sheet{background:#fff;width:100%;border-radius:18px 18px 0 0;padding:18px 16px 24px}
@@ -401,6 +403,23 @@
 </div>
 
 <!-- PRICE set/edit (owner PIN) -->
+<!-- MOVE STATUS (ส่งกลับรอตรวจสอบ / ส่งเคลมโรงงาน) -->
+<div class="modal" id="moveModal">
+  <div class="sheet">
+    <h3 id="moveTitle">🔄 ย้ายสถานะสินค้า</h3>
+    <div class="sub" id="moveItemName"></div>
+    <div class="hint" id="moveHint" style="margin:6px 0 10px"></div>
+    <label>เหตุผล (ไม่ใส่ก็ได้)</label>
+    <input id="moveReason" placeholder="เช่น ต้องตรวจซ้ำ / ส่งคืนโรงงาน">
+    <label>รหัสผู้รับผิดชอบคลัง</label>
+    <input type="password" inputmode="numeric" id="movePin" class="pin" placeholder="••••">
+    <div class="row-btns">
+      <button class="btn gray" id="moveCancelBtn">กลับ</button>
+      <button class="btn" id="moveConfirmBtn">ยืนยันย้าย</button>
+    </div>
+  </div>
+</div>
+
 <!-- CANCEL SALE -->
 <div class="modal" id="cancelSaleModal">
   <div class="sheet">
@@ -746,10 +765,55 @@ function renderList(){
         <div class="price ${it.price_status==='pending'?'pending':''}">${it.price_status==='set'?("฿ "+Number(it.preset_price).toLocaleString()):"รอตั้งราคา"}</div>
         ${statusBadge(it.status)}
         ${transferMeta(it)}
-        ${cancelSaleBtn(it)}
+        ${cardActions(it)}
       </div>
     </div>`).join("");
 }
+function cardActions(it){
+  let h = cancelSaleBtn(it);
+  if(it.status==='in_stock'){
+    h += `<div class="actrow">`
+       + `<button class="actbtn" style="background:#6b7280" onclick="event.stopPropagation();openMove(${it.id},'pending_review')">⬅️ ส่งกลับรอตรวจสอบ</button>`
+       + `<button class="actbtn" style="background:#0ea5e9" onclick="event.stopPropagation();openMove(${it.id},'claim_pending')">🏭 ส่งเคลมโรงงาน</button>`
+       + `</div>`;
+  }
+  return h;
+}
+const MOVE_INFO = {
+  pending_review:{t:'⬅️ ส่งกลับ "รอคลังตรวจสอบ"', h:'ของจะออกจากรายการขาย กลับไปรอคนคลังกด "✅ ตรวจแล้ว — อนุมัติ" ใหม่'},
+  claim_pending :{t:'🏭 ส่งเข้า "รอเคลมโรงงาน"', h:'ของจะออกจากรายการขาย ไปอยู่แท็บเคลมโรงงาน ช่อง ① รอเคลม'},
+  in_stock      :{t:'📦 ดึงกลับ "พร้อมขาย"',     h:'เอาของออกจากรอเคลม กลับมาขึ้นรายการขายตามเดิม'}
+};
+let moveId=null, moveTarget=null;
+window.openMove = (id,target) => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  moveId=id; moveTarget=target;
+  const info = MOVE_INFO[target]||{t:'ย้ายสถานะ',h:''};
+  $("#moveTitle").textContent = info.t;
+  $("#moveHint").textContent = info.h;
+  $("#moveItemName").textContent = (it.code||"")+" "+(it.name||"");
+  $("#moveReason").value=""; $("#movePin").value="";
+  $("#moveModal").classList.add("show");
+  setTimeout(()=>$("#movePin").focus(),100);
+};
+$("#moveCancelBtn").onclick = ()=> $("#moveModal").classList.remove("show");
+$("#moveConfirmBtn").onclick = async ()=>{
+  if(moveId==null||!moveTarget) return;
+  const pin = $("#movePin").value.trim();
+  if(!pin){ toast("ใส่รหัสผู้รับผิดชอบคลัง"); return; }
+  const btn=$("#moveConfirmBtn"); const old=btn.textContent;
+  btn.disabled=true; btn.textContent="กำลังย้าย...";
+  const {data,error} = await db.rpc("stock_revert_item",{
+    p_item_id:moveId, p_pin:pin, p_target:moveTarget, p_reason:$("#moveReason").value.trim()||null
+  });
+  btn.disabled=false; btn.textContent=old;
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  if(!data || !data.ok){ toast(data&&data.error?data.error:"ย้ายไม่สำเร็จ"); return; }
+  $("#moveModal").classList.remove("show");
+  moveId=null; moveTarget=null;
+  toast("ย้ายสถานะแล้ว ✅");
+  await loadItems();
+};
 function cancelSaleBtn(it){
   if(it.status!=='sold_pending') return "";
   const s = openSaleByItem[it.id];
@@ -846,7 +910,10 @@ function renderClaim(){
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${(it.responsible_by||it.responsible_external)?" · ทำ: "+respName(it):""}${it.cause?" · "+it.cause:""}</div>
         ${transferMeta(it)}
         ${damageBlock(it)}
-        <button class="actbtn confirm" onclick="event.stopPropagation();openClaim(${it.id})">✅ เคลมเสร็จแล้ว (ทีละชิ้น)</button>
+        <div class="actrow">
+          <button class="actbtn confirm" onclick="event.stopPropagation();openClaim(${it.id})">✅ เคลมเสร็จแล้ว (ทีละชิ้น)</button>
+          ${it.credit_note_no?"":`<button class="actbtn" style="background:#6b7280" onclick="event.stopPropagation();openMove(${it.id},'in_stock')">↩️ เอาออกจากรอเคลม</button>`}
+        </div>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
   // เคลมแล้ว = แบบคืนสินค้า (ที่เหลืออยู่ใน claim_done) — แบบไม่คืนจะย้ายไปคลังตำหนิ ไม่อยู่ตรงนี้
