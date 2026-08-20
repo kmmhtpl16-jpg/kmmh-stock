@@ -150,6 +150,7 @@
   <button data-tab="claim">เคลมโรงงาน <span id="ccount"></span></button>
   <button data-tab="credit">📑 ใบลดหนี้</button>
   <button data-tab="summary">📊 สรุป</button>
+  <button data-tab="scrap">🗑️ ทิ้งแล้ว <span id="scrapcount"></span></button>
 </div>
 
 <div class="wrap">
@@ -209,6 +210,12 @@
       <input type="month" id="sumMonth" style="flex:1">
     </div>
     <div id="summaryBody"></div>
+  </div>
+
+  <!-- SCRAPPED (ทิ้ง/ทำลายทิ้ง) -->
+  <div id="tab-scrap" style="display:none">
+    <div class="hint">ของที่ทิ้ง/ทำลายทิ้งไปแล้ว — ออกจากคลังถาวร ไม่ขึ้นรายการขายและไม่นับเป็นมูลค่าคงเหลือ · ถ้ากดผิดชิ้น ใช้ปุ่ม "↩️ ดึงกลับเข้าคลัง" (ต้องใช้รหัสเจ้าของ)</div>
+    <div id="scrapList"></div>
   </div>
 
   <!-- ADD (opened from header button) -->
@@ -411,11 +418,28 @@
     <div class="hint" id="moveHint" style="margin:6px 0 10px"></div>
     <label>เหตุผล (ไม่ใส่ก็ได้)</label>
     <input id="moveReason" placeholder="เช่น ต้องตรวจซ้ำ / ส่งคืนโรงงาน">
-    <label>รหัสผู้รับผิดชอบคลัง</label>
+    <label id="movePinLabel">รหัสผู้รับผิดชอบคลัง</label>
     <input type="password" inputmode="numeric" id="movePin" class="pin" placeholder="••••">
     <div class="row-btns">
       <button class="btn gray" id="moveCancelBtn">กลับ</button>
       <button class="btn" id="moveConfirmBtn">ยืนยันย้าย</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCRAP (ทิ้ง/ทำลายทิ้ง — รหัสเจ้าของเท่านั้น) -->
+<div class="modal" id="scrapModal">
+  <div class="sheet">
+    <h3>🗑️ ทิ้ง / ทำลายทิ้ง</h3>
+    <div class="sub" id="scrapItemName"></div>
+    <div class="hint" style="margin:6px 0 10px">ของจะออกจากคลังถาวร ไม่ขึ้นรายการขายและไม่นับมูลค่าคงเหลือ — ใช้กับของที่ซ่อมไม่ได้/ขายไม่ได้จริง ๆ เท่านั้น · ถ้ากดผิดชิ้น ยังดึงกลับได้ที่แท็บ "🗑️ ทิ้งแล้ว"</div>
+    <label>เหตุผลที่ทิ้ง * (ต้องใส่)</label>
+    <input id="scrapReason" placeholder="เช่น แผ่นผุทั้งกล่อง ขายไม่ได้">
+    <label>รหัสเจ้าของ</label>
+    <input type="password" inputmode="numeric" id="scrapPin" class="pin" placeholder="••••">
+    <div class="row-btns">
+      <button class="btn gray" id="scrapCancelBtn">กลับ</button>
+      <button class="btn" id="scrapConfirmBtn" style="background:var(--danger)">ยืนยันทิ้ง</button>
     </div>
   </div>
 </div>
@@ -560,13 +584,13 @@ const empName = id => { const e=employees.find(x=>x.id===id); return e ? (e.nick
 document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
-  ["list","history","review","claim","credit","summary"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
+  ["list","history","review","claim","credit","summary","scrap"].forEach(t=>$("#tab-"+t).style.display = t===b.dataset.tab?"block":"none");
   $("#tab-add").style.display="none";
   if(b.dataset.tab==='summary') renderSummary();
   if(b.dataset.tab==='credit') renderCreditNotes();
 });
 $("#addOpenBtn").onclick = ()=>{
-  ["list","history","review","claim","credit","summary"].forEach(t=>$("#tab-"+t).style.display="none");
+  ["list","history","review","claim","credit","summary","scrap"].forEach(t=>$("#tab-"+t).style.display="none");
   document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));
   $("#tab-add").style.display="block";
 };
@@ -619,7 +643,7 @@ async function loadItems(){
   if(error){ toast("โหลดรายการไม่ได้: "+error.message); return; }
   items = data||[];
   await loadOpenSales();
-  renderList(); renderApprove(); renderPrice(); renderHistory(); renderClaim();
+  renderList(); renderApprove(); renderPrice(); renderHistory(); renderClaim(); renderScrap();
   loadCreditNotes();
   const aCnt=items.filter(it=>it.status==='pending_review').length;
   const pCnt=items.filter(it=>it.price_status==='pending'&&it.status==='in_stock').length;
@@ -775,9 +799,62 @@ function cardActions(it){
     h += `<div class="actrow">`
        + `<button class="actbtn" style="background:#6b7280" onclick="event.stopPropagation();openMove(${it.id},'pending_review')">⬅️ ส่งกลับรอตรวจสอบ</button>`
        + `<button class="actbtn" style="background:#0ea5e9" onclick="event.stopPropagation();openMove(${it.id},'claim_pending')">🏭 ส่งเคลมโรงงาน</button>`
+       + scrapBtn(it)
        + `</div>`;
   }
   return h;
+}
+// ---- ทิ้ง / ทำลายทิ้ง (รหัสเจ้าของเท่านั้น) ----
+function scrapBtn(it){
+  if(!["in_stock","pending_review","claim_pending"].includes(it.status)) return "";
+  if(it.credit_note_no) return "";   // ผูกใบลดหนี้แล้ว DB บล็อกอยู่แล้ว
+  return `<button class="actbtn" style="background:var(--danger)" onclick="event.stopPropagation();openScrap(${it.id})">🗑️ ทิ้ง/ทำลาย</button>`;
+}
+let scrapId=null;
+window.openScrap = id => {
+  const it = items.find(x=>x.id===id); if(!it) return;
+  scrapId=id;
+  $("#scrapItemName").textContent = (it.code||"")+" "+(it.name||"");
+  $("#scrapReason").value=""; $("#scrapPin").value="";
+  $("#scrapModal").classList.add("show");
+  setTimeout(()=>$("#scrapReason").focus(),100);
+};
+$("#scrapCancelBtn").onclick = ()=> $("#scrapModal").classList.remove("show");
+$("#scrapConfirmBtn").onclick = async ()=>{
+  if(scrapId==null) return;
+  const reason = $("#scrapReason").value.trim();
+  if(!reason){ toast("ต้องใส่เหตุผลที่ทิ้ง"); return; }
+  const pin = $("#scrapPin").value.trim();
+  if(!pin){ toast("ใส่รหัสเจ้าของ"); return; }
+  const btn=$("#scrapConfirmBtn"); const old=btn.textContent;
+  btn.disabled=true; btn.textContent="กำลังทิ้ง...";
+  const {data,error} = await db.rpc("stock_scrap_item",{ p_item_id:scrapId, p_pin:pin, p_reason:reason });
+  btn.disabled=false; btn.textContent=old;
+  if(error){ toast("ผิดพลาด: "+error.message); return; }
+  if(!data || !data.ok){ toast(data&&data.error?data.error:"ทิ้งไม่สำเร็จ"); return; }
+  $("#scrapModal").classList.remove("show");
+  scrapId=null;
+  toast("ทิ้งของแล้ว — ดูได้ที่แท็บ 🗑️ ทิ้งแล้ว ✅");
+  await loadItems();
+};
+const scrapDate = ts => ts ? new Date(ts).toLocaleDateString("th-TH",{day:"2-digit",month:"short",year:"2-digit"}) : "-";
+function renderScrap(){
+  const arr = items.filter(it=>it.status==='scrapped')
+                   .sort((a,b)=> new Date(b.scrapped_at||0) - new Date(a.scrapped_at||0));
+  $("#scrapcount").textContent = arr.length?("("+arr.length+")"):"";
+  $("#scrapList").innerHTML = arr.length ? arr.slice(0,50).map(it=>`
+    <div class="card item">
+      ${photoTag(it)}
+      <div class="info">
+        <div class="code">${it.code||""}</div>
+        <div class="nm">${it.name||""}</div>
+        ${it.condition?`<div class="meta">🔧 ${escH(it.condition)}</div>`:""}
+        <div class="meta">🗑️ ทิ้งเมื่อ ${scrapDate(it.scrapped_at)}</div>
+        <div class="meta">📝 เหตุผล: <b>${escH(it.scrap_reason||"-")}</b></div>
+        ${it.price_status==='set'?`<div class="meta">💵 มูลค่าที่เคยตั้งขาย: ${fmt(it.preset_price)}</div>`:""}
+        <button class="actbtn" style="background:#6b7280" onclick="event.stopPropagation();openMove(${it.id},'in_stock')">↩️ ดึงกลับเข้าคลัง</button>
+      </div>
+    </div>`).join("") : '<div class="empty">ยังไม่มีของที่ทิ้ง 👍</div>';
 }
 const MOVE_INFO = {
   pending_review:{t:'⬅️ ส่งกลับ "รอคลังตรวจสอบ"', h:'ของจะออกจากรายการขาย กลับไปรอคนคลังกด "✅ ตรวจแล้ว — อนุมัติ" ใหม่'},
@@ -788,7 +865,9 @@ let moveId=null, moveTarget=null;
 window.openMove = (id,target) => {
   const it = items.find(x=>x.id===id); if(!it) return;
   moveId=id; moveTarget=target;
-  const info = MOVE_INFO[target]||{t:'ย้ายสถานะ',h:''};
+  let info = MOVE_INFO[target]||{t:'ย้ายสถานะ',h:''};
+  if(it.status==='scrapped') info = {t:'↩️ ดึงกลับเข้าคลัง', h:'ยกเลิกการทิ้ง — ของจะกลับไปอยู่ "พร้อมขาย" ตามเดิม (ต้องใช้รหัสเจ้าของเท่านั้น)'};
+  $("#movePinLabel").textContent = it.status==='scrapped' ? "รหัสเจ้าของ" : "รหัสผู้รับผิดชอบคลัง";
   $("#moveTitle").textContent = info.t;
   $("#moveHint").textContent = info.h;
   $("#moveItemName").textContent = (it.code||"")+" "+(it.name||"");
@@ -886,7 +965,10 @@ function renderApprove(){
         <div class="meta">เจอ: ${it.found_by_name||empName(it.found_by)}${(it.responsible_by||it.responsible_external)?" · ทำ: "+respName(it):""}${it.cause?" · "+it.cause:""}</div>
         ${transferMeta(it)}
         ${damageBlock(it)}
-        <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
+        <div class="actrow">
+          <button class="actbtn sell" onclick="openApprove(${it.id})">✅ ตรวจแล้ว — อนุมัติ</button>
+          ${scrapBtn(it)}
+        </div>
       </div>
     </div>`).join("");
 }
@@ -913,6 +995,7 @@ function renderClaim(){
         <div class="actrow">
           <button class="actbtn confirm" onclick="event.stopPropagation();openClaim(${it.id})">✅ เคลมเสร็จแล้ว (ทีละชิ้น)</button>
           ${it.credit_note_no?"":`<button class="actbtn" style="background:#6b7280" onclick="event.stopPropagation();openMove(${it.id},'in_stock')">↩️ เอาออกจากรอเคลม</button>`}
+          ${scrapBtn(it)}
         </div>
       </div>
     </div>`).join("") : '<div class="empty">ไม่มีของรอเคลม 👍</div>';
@@ -1614,6 +1697,10 @@ async function renderSummary(){
     <div class="card" style="${tap}" onclick="openSumDetail('backlog')"><div class="sechead">⏳ ค้าง / ต้องจัดการ (ปัจจุบัน) ›</div>
       <div class="meta">รออนุมัติ ${s.backlog_review||0} · รอตั้งราคา ${s.backlog_price||0} · รอใส่บิล ${s.backlog_bill||0} · รอเคลม ${s.backlog_claim||0}</div>
     </div>
+    <div class="card" style="${tap}" onclick="openSumDetail('scrap')"><div class="sechead">🗑️ ทิ้ง/ทำลายทิ้งเดือนนี้ ›</div>
+      <div class="bigprice">฿ ${B(s.scrap_val)}</div>
+      <div class="meta">${s.scrap_cnt||0} ชิ้น · ทิ้งสะสมทั้งหมด ${s.scrap_total||0} ชิ้น</div>
+    </div>
     <div class="card"><div class="sechead">📦 สรุปตามรายสินค้า (เดือนนี้)</div>
       ${prod.length ? prod.map(p=>rowLine(p.name, `${p.cnt} ชิ้น · ฿${B(p.val)}`)).join("") : '<div class="meta">— ไม่มีของเพิ่มเดือนนี้ —</div>'}
     </div>
@@ -1650,6 +1737,10 @@ window.openSumDetail = async kind => {
     const lbl={pending_review:'รออนุมัติ',sold_pending:'รอใส่บิล',claim_pending:'รอเคลม'};
     rows=items.filter(it=>['pending_review','sold_pending','claim_pending'].includes(it.status)||(it.status==='in_stock'&&it.price_status==='pending'))
       .map(it=>{ const l=it.status==='in_stock'?'รอตั้งราคา':(lbl[it.status]||it.status); return `<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">${l}</div></div></div>`; });
+  } else if(kind==='scrap'){
+    title="🗑️ ทิ้ง/ทำลายทิ้ง "+mv;
+    rows=items.filter(it=>it.status==='scrapped'&&it.scrapped_at&&new Date(it.scrapped_at)>=d0&&new Date(it.scrapped_at)<d1)
+      .map(it=>`<div class="card item"><div class="info"><div class="nm">${nm(it.id)}</div><div class="meta">📝 ${escH(it.scrap_reason||'-')}${it.price_status==='set'?' · '+fmt(it.preset_price):''}</div></div></div>`);
   }
   $("#sumTitle").textContent=title;
   $("#sumList").innerHTML = rows.length ? rows.join("") : '<div class="empty">ไม่มีรายการ</div>';
